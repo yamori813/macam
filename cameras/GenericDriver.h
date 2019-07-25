@@ -51,7 +51,7 @@ typedef enum DriverType
 
 // These seem to work well for many cameras
 
-#define GENERIC_FRAMES_PER_TRANSFER  50
+#define GENERIC_FRAMES_PER_TRANSFER  192
 #define GENERIC_MAX_TRANSFERS         5
 #define GENERIC_NUM_TRANSFERS         2
 #define GENERIC_MAX_CHUNK_BUFFERS     9

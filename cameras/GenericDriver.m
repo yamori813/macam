@@ -1021,7 +1021,10 @@ static bool startNextIsochRead(GenericGrabContext * gCtx, int transferIdx)
                                                  (IOAsyncCallback1) (isocComplete),
                                                  gCtx);
     
-    gCtx->initiatedUntil += gCtx->numberOfFramesPerTransfer;
+	if (gCtx->bytesPerFrame == kUSBMaxHSIsocEndpointReqCount)
+		gCtx->initiatedUntil += gCtx->numberOfFramesPerTransfer / 8;
+	else
+		gCtx->initiatedUntil += gCtx->numberOfFramesPerTransfer;
     
     switch (error) 
     {
