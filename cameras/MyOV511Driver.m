@@ -72,6 +72,51 @@ int Decompress420(unsigned char *pIn, unsigned char *pOut, unsigned char *pTmp, 
 #define ENABLE_Y_QUANTABLE 1
 #define ENABLE_UV_QUANTABLE 1
 
+// fot tuner
+
+#define FREQFACTOR  16
+
+#define OFFSET  6.00
+#define IF_FREQ 45.75
+static int jpnbcst[] = {
+	62,     (int)(IF_FREQ * FREQFACTOR),    0,
+	13,     (int)(471.25 * FREQFACTOR),     (int)(OFFSET * FREQFACTOR),
+	8,     (int)(193.25 * FREQFACTOR),     (int)(OFFSET * FREQFACTOR),
+	4,     (int)(171.25 * FREQFACTOR),     (int)(OFFSET * FREQFACTOR),
+	1,     (int)( 91.25 * FREQFACTOR),     (int)(OFFSET * FREQFACTOR),
+	0
+};
+#undef IF_FREQ
+#undef OFFSET
+
+#define TBL_CHNL	jpnbcst[ x ]
+#define TBL_BASE_FREQ	jpnbcst[ x + 1 ]
+#define TBL_OFFSET	jpnbcst[ x + 2 ]
+static int
+frequency_lookup( int channel )
+{
+	int	x;
+
+	/* check for "> MAX channel" */
+	x = 0;
+	if ( channel > TBL_CHNL )
+		return( -1 );
+
+	/* search the table for data */
+	for ( x = 3; TBL_CHNL; x += 3 ) {
+		if ( channel >= TBL_CHNL ) {
+			return( TBL_BASE_FREQ +
+				   ((channel - TBL_CHNL) * TBL_OFFSET) );
+		}
+	}
+
+	/* not found, must be below the MIN channel */
+	return( -1 );
+}
+#undef TBL_OFFSET
+#undef TBL_BASE_FREQ
+#undef TBL_CHNL
+
 @implementation MyOV511PlusDriver
 
 //Class methods needed
@@ -181,10 +226,18 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
     cid = buf[0];
     switch(cid) {
         case 6:
+            audioWrite = PT2313L_I2C_WRITE_ID;
+            audioRead = PT2313L_I2C_READ_ID;
+			NSLog(@"PT2313L");
+            tunerWrite = FI1236MK2_I2C_WRITE_ID;
+            tunerRead = FI1236MK2_I2C_READ_ID;
+			[self settv:1];
+			buf[0] = 0x03;
+			[self usbWriteCmdWithBRequest:2 wValue:0 wIndex:OV511_REG_RST buf:buf len:1];
             sensorType = SENS_SAA7111A_WITH_FI1236MK2;
             sensorWrite = SAA7111A_I2C_WRITE_ID;
             sensorRead = SAA7111A_I2C_READ_ID;
-            [self seti2cid];
+            [self seti2cid:sensorWrite read:sensorRead];
 #ifdef OV511_DEBUG
             NSLog(@"macam: Lifeview USB Life TV (NTSC)");
 #endif
@@ -193,7 +246,7 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
             sensorType = SENS_SAA7111A;
             sensorWrite = SAA7111A_I2C_WRITE_ID;
             sensorRead = SAA7111A_I2C_READ_ID;
-            [self seti2cid];
+            [self seti2cid:sensorWrite read:sensorRead];
 #ifdef OV511_DEBUG
             NSLog(@"macam: Lifeview USB CapView");
 #endif
@@ -210,7 +263,7 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
             if(i <= 7) {
                 sensorWrite = OV7610_I2C_WRITE_ID + i * 4;
                 sensorRead = OV7610_I2C_READ_ID + i * 4;
-                [self seti2cid];
+                [self seti2cid:sensorWrite read:sensorRead];
 
                 // check Common I version ID
                 if(([self i2cRead:0x29] & 0x03) == 0x03) {
@@ -235,7 +288,7 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
                 if(i <= 7) {
                     sensorWrite = OV6620_I2C_WRITE_ID + i * 4;
                     sensorRead = OV6620_I2C_READ_ID + i * 4;
-                    [self seti2cid];
+                    [self seti2cid:sensorWrite read:sensorRead];
 
                     sensorType = SENS_OV6620;
 #ifdef OV511_DEBUG
@@ -409,8 +462,9 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
             return NO;
             break;
         case ResolutionVGA:
-            if ((sensorType == SENS_OV7610 || sensorType == SENS_OV7620) &&
-                rate<=10) return YES;
+            if ((sensorType == SENS_OV7610 || sensorType == SENS_OV7620 ||
+                sensorType == SENS_SAA7111A || sensorType == SENS_SAA7111A_WITH_FI1236MK2)
+                 && rate<=10) return YES;
             return NO;
             break;
         default: return NO;
@@ -476,7 +530,7 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
     grabContext.framesPerTransfer=192;
 #endif
     grabContext.framesInRing=grabContext.framesPerTransfer*16;
-    grabContext.concurrentTransfers=2;
+    grabContext.concurrentTransfers=3;
     grabContext.finishedTransfers=0;
     grabContext.bytesPerChunk=[self height]*[self width]*6/4+chunkHeader+chunkFooter;	//4 yuv pixels fit into 4 bytes  + header + footer
     grabContext.nextReadOffset=0;
@@ -614,7 +668,6 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
             [self i2cWrite:OV7610_REG_BBS val:0x24];
             [self i2cWrite:OV7610_REG_RBS val:0x24];
             [self i2cWrite:OV7610_REG_RBS val:0x24];
-
             // SIF
 //            [self i2cWrite:OV7610_REG_SYN_CLK val:0x01];
             if([self fps] <= 5) 
@@ -626,8 +679,7 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
             [self i2cWrite:OV7610_REG_COMA val:0x04];
             [self i2cWrite:OV7610_REG_COMC val:0x24];
             [self i2cWrite:OV7610_REG_COML val:0x9e];
-
-         } else if(sensorType == SENS_OV6620) {
+		} else if(sensorType == SENS_OV6620) {
 
             // This code from Linux driver
             [self i2cWrite:0x12 val:0x80]; /* reset */
@@ -703,8 +755,9 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
             [self i2cWrite:0x15 val:0x00];
             [self i2cWrite:0x16 val:0x00];
             [self i2cWrite:0x17 val:0x00];
-
-            [self i2cWrite:0x02 val:0xc0];
+//            [self i2cWrite:0x02 val:0xc0]; // composit
+		   [self i2cWrite:0x02 val:0xc2]; // tuner
+//		   [self i2cWrite:0x02 val:0xc7]; // S Video
 
 #ifdef OV511_DEBUG
             NSLog(@"SAA7111A status = %02x\n",  [self i2cRead:0x1f]);
@@ -721,7 +774,6 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
             [self usbWriteCmdWithBRequest:2 wValue:0 wIndex:OV511_REG_LT_EN buf:buf len:1];
         }
 #endif
-
         if(sensorType == SENS_SAA7111A) {
             buf[0] = 0x00;
             [self usbWriteCmdWithBRequest:2 wValue:0 wIndex:OV511_REG_DLYM buf:buf len:1];
@@ -737,7 +789,7 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
         [self usbWriteCmdWithBRequest:2 wValue:0 wIndex:OV511_REG_LNCNT buf:buf len:1];
 
         if(resolution == ResolutionVGA &&
-            (sensorType == SENS_OV7610 || sensorType == SENS_OV7620)) {
+		   (sensorType == SENS_OV7610 || sensorType == SENS_OV7620)) {
 //            [self i2cWrite:OV7610_REG_SYN_CLK val:0x06];
             if([self fps] <= 5) 
                 [self i2cWrite:OV7610_REG_SYN_CLK val:0x07];
@@ -777,6 +829,14 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
 
         buf[0] = 0x00;
         [self usbWriteCmdWithBRequest:2 wValue:0 wIndex:OV511_REG_RST buf:buf len:1];
+
+		if (sensorType == SENS_SAA7111A_WITH_FI1236MK2) {
+			[self seti2cid:audioWrite read:audioRead];
+			printf("read2 %d\n", [self i2cRead2]);
+			[self i2cWrite:0x08 val:0x44];
+			[self i2cWrite:0x80 val:0xa0];
+			[self seti2cid:sensorWrite read:sensorRead];
+		}
     }
 
     return ok;
@@ -808,6 +868,14 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
         [grabContext.chunkListLock release];
         grabContext.chunkListLock=NULL;
     }
+
+	if (sensorType == SENS_SAA7111A_WITH_FI1236MK2) {
+		[self seti2cid:audioWrite read:audioRead];
+		printf("read2 %d\n", [self i2cRead2]);
+		[self i2cWrite:0x3f val:0x44];
+		[self seti2cid:sensorWrite read:sensorRead];
+	}
+
     return YES;
 }
 
@@ -1376,14 +1444,41 @@ static bool StartNextIsochRead(OV511GrabContext* grabContext, int transferIdx) {
     return val;
 }
 
-- (void) seti2cid {
+- (void) settv:(int)ch {
+	int control = 0xce;
+	int band;
+	int frequency, N;
+
+	[self seti2cid:tunerWrite read:tunerRead];
+
+	printf("read2 %d\n", [self i2cRead2]);
+
+	frequency = frequency_lookup(ch);
+
+	if ( frequency < (160 * FREQFACTOR  ) )
+		band = 0xa0;
+	else if ( frequency < (454 * FREQFACTOR ) )
+		band = 0x90;
+	else
+		band = 0x30;
+
+	N = frequency + (int)(45.75 * 16);
+
+	printf("tuner = %02x %02x\n", (N >> 8) & 0x7f, N & 0xff);
+
+	[self i2cWrite:(N >> 8) & 0x7f val:N & 0xff];
+
+	[self i2cWrite:control val:band];
+}
+
+- (void) seti2cid:(int)wr read:(int)rd {
     UInt8 buf[16];
     /* set I2C write slave ID */
-    buf[0] = sensorWrite;
+    buf[0] = wr;
     [self usbWriteCmdWithBRequest:2 wValue:0 wIndex:OV511_REG_SID buf:buf len:1];
 
     /* set I2C read slave ID */
-    buf[0] = sensorRead;
+    buf[0] = rd;
     [self usbWriteCmdWithBRequest:2 wValue:0 wIndex:OV511_REG_SRA buf:buf len:1];
 }
 

@@ -178,6 +178,9 @@ Doing these amounts of defines is often called bad style. We should find a bette
 #define FI1236MK2_I2C_WRITE_ID	0xC2
 #define FI1236MK2_I2C_READ_ID	0xC3
 
+#define PT2313L_I2C_WRITE_ID	0x88
+#define PT2313L_I2C_READ_ID		0x89
+
 #define OV6620_I2C_WRITE_ID	0xc0
 #define OV6620_I2C_READ_ID	0xc1
 
@@ -234,8 +237,15 @@ typedef struct OV511GrabContext {	//Everything the grabbing thread internals nee
 //Camera Type
     short customId;
     short sensorType;
-    short sensorRead;
+
     short sensorWrite;
+    short sensorRead;
+
+    short tunerWrite;
+    short tunerRead;
+
+	short audioWrite;
+    short audioRead;
 
 //Camera Status
     short usbFrameBytes;
