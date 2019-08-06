@@ -28,7 +28,7 @@
 #include "unistd.h"
 #include "yuv2rgb.h"
 #include "USB_VendorProductIDs.h"
-
+#import "yuv2rgb.h"
 
 @implementation KworldTV300UDriver
 //
@@ -90,10 +90,10 @@
 	unsigned char buf[8];
 	buf[0] = EM28XX_I2C_CLK_WAIT_ENABLE;
 	[self em28xxWriteRegisters:EM28XX_R06_I2C_CLK withBuffer:buf ofLength:1];
-	buf[0] = 0x80;
+	buf[0] = TVP5150_MSB_DEV_ID;
 	[self em28xxI2cSendBytes:0xb8 buf:buf len:1 stop:0];
 	[self em28xxI2cRecvBytes:0xb9 buf:buf len:1];
-	buf[0] = 0x81;
+	buf[0] = TVP5150_LSB_DEV_ID;
 	[self em28xxI2cSendBytes:0xb8 buf:buf len:1 stop:0];
 	[self em28xxI2cRecvBytes:0xb9 buf:buf len:1];
 	
@@ -170,11 +170,14 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 //	if (frameLength)
 //    printf("buffer[0] = 0x%02x (length = %d) 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\n", buffer[0], frameLength, buffer[1], buffer[2], buffer[3], buffer[4], buffer[5]);
 	if (frameLength >= 4) {
-		if (buffer[0] == 0x22 && buffer[1] == 0x5a) {
-			printf("MORI MORI %d %d %d\n", frcount, buffer[2] & 1, buffer[3]);
+		if (buffer[0] == 0x22 && buffer[1] == 0x5a && (buffer[2] & 1) == 0) {
+//			if (buffer[0] == 0x22 && buffer[1] == 0x5a) {
+//				if((buffer[2] & 1 && frcount != 312324) || ((buffer[2] & 1) == 0 && frcount != 311044))
+//			printf("MORI MORI %d %d %d\n", frcount, buffer[2] & 1, buffer[3]);
 			frcount = frameLength - 4;
 			return newChunkFrame;
-		} else if (buffer[0] == 0x88 && buffer[1] == 0x88 && buffer[2] == 0x88 && buffer[3] == 0x88) {
+//		} else if (buffer[0] == 0x88 && buffer[1] == 0x88 && buffer[2] == 0x88 && buffer[3] == 0x88) {
+		} else {
 			frcount += frameLength - 4;
 		}
 	}
@@ -279,12 +282,36 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 {
     CameraError error = CameraErrorOK;
 	unsigned char buf[8];
-	buf[0] = 0x0d;
+	buf[0] = TVP5150_DATA_RATE_SEL;
 	buf[1] = 0x07;
-	[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
+//	[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
 	usleep(50000);
-	buf[0] = 0x00;
+	
+	buf[0] = TVP5150_VD_IN_SRC_SEL_1;
 	buf[1] = 0x02;
+	[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
+
+	buf[0] = TVP5150_VIDEO_STD;
+	buf[1] = 0x02;
+	[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
+	
+	buf[0] = TVP5150_ANAL_CHL_CTL;
+	buf[1] = 0x15;
+	[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
+	
+	buf[0] = TVP5150_MISC_CTL;
+	buf[1] = 0x2f;
+	[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
+	/*
+	buf[0] = TVP5150_CHROMA_PROC_CTL_1;
+	buf[1] = 0x0c;
+	[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
+	buf[0] = TVP5150_CHROMA_PROC_CTL_2;
+	buf[1] = 0x54;
+	[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
+
+	buf[0] = 0x27;
+	buf[1] = 0x20;
 	[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
 	usleep(50000);
 	
@@ -298,7 +325,11 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 	buf[0] = 0x03;
 	[self em28xxI2cSendBytes:0xb8 buf:buf len:1 stop:0];
 	[self em28xxI2cRecvBytes:0xb9 buf:buf len:1];
-	
+	 */
+
+	buf[0] = EM28XX_XCLK_FREQUENCY_12MHZ;
+	[self em28xxWriteRegisters:EM28XX_R0F_XCLK withBuffer:buf ofLength:1];
+
 	buf[0] = 0xff;
 	[self em28xxWriteRegisters:EM28XX_R08_GPIO withBuffer:buf ofLength:1];
 	usleep(50000);
@@ -311,16 +342,48 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 	buf[0] = 0xfd;
 	[self em28xxWriteRegisters:EM28XX_R08_GPIO withBuffer:buf ofLength:1];
 	usleep(50000);
-	buf[0] = EM28XX_VINCTRL_INTERLACED | EM28XX_VINCTRL_CCIR656_ENABLE
-	;
+
+	buf[0] = EM28XX_VINCTRL_INTERLACED | EM28XX_VINCTRL_CCIR656_ENABLE;
 	[self em28xxWriteRegisters:EM28XX_R11_VINCTRL withBuffer:buf ofLength:1];
 	usleep(50000);
+
+
+	buf[0] = 1;
+	[self em28xxWriteRegisters:EM28XX_R28_XMIN withBuffer:buf ofLength:2];
+	buf[0] = (640 - 4) >> 2;
+	[self em28xxWriteRegisters:EM28XX_R29_XMAX withBuffer:buf ofLength:2];
+	buf[0] = 1;
+	[self em28xxWriteRegisters:EM28XX_R2A_YMIN withBuffer:buf ofLength:2];
+	buf[0] = (480 - 4) >> 2;
+	[self em28xxWriteRegisters:EM28XX_R2B_YMAX withBuffer:buf ofLength:2];
+
+	
+	buf[0] = 0;
+	[self em28xxWriteRegisters:EM28XX_R1C_HSTART withBuffer:buf ofLength:2];
+	buf[0] = 0;
+	[self em28xxWriteRegisters:EM28XX_R1D_VSTART withBuffer:buf ofLength:2];
+	buf[0] = 0xff & (640 >> 2);
+	[self em28xxWriteRegisters:EM28XX_R1E_CWIDTH withBuffer:buf ofLength:2];
+	buf[0] = 0xff & (480 >> 2);
+	[self em28xxWriteRegisters:EM28XX_R1F_CHEIGHT withBuffer:buf ofLength:2];
+	buf[0] = 0;
+	[self em28xxWriteRegisters:EM28XX_R1B_OFLOW withBuffer:buf ofLength:2];
+	
+	int hs = (640 << 12) / 640 + 4096;
+	int vs = (480 << 12) / 480 + 4096;
+	buf[0] = hs & 0xff;
+	buf[1] = hs >> 8;
+	[self em28xxWriteRegisters:EM28XX_R30_HSCALELOW withBuffer:buf ofLength:2];
+	buf[0] = vs & 0xff;
+	buf[1] = vs >> 8;
+	[self em28xxWriteRegisters:EM28XX_R32_VSCALELOW withBuffer:buf ofLength:2];
+	
 	buf[0] = 0x00;
 	[self em28xxWriteRegisters:EM28XX_R26_COMPR withBuffer:buf ofLength:1];
 	usleep(50000);
-	buf[0] = EM28XX_OUTFMT_YUV422_Y0UY1V;
+	buf[0] = EM28XX_OUTFMT_RGB_16_656;
 	[self em28xxWriteRegisters:EM28XX_R27_OUTFMT withBuffer:buf ofLength:1];
-	
+
     if ([self em28xxWriteRegister:EM28XX_R0C_USBSUSP withValue:0x10 andBitmask:0x10] < 0)  // USBSUSP_REG = 0x0c
         error = CameraErrorUSBProblem;
 
@@ -352,7 +415,7 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 //- (BOOL) decodeBuffer: (GenericChunkBuffer *) buffer
 - (BOOL) decodeBufferGSPCA: (GenericChunkBuffer *) buffer
 {
-    printf("Need to decode a buffer with %ld bytes.\n", buffer->numBytes);
+//    printf("Need to decode a buffer with %ld bytes.\n", buffer->numBytes);
 
 	long w, h;
     UInt8 * src = buffer->buffer;
@@ -361,20 +424,56 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 	short numColumns  = [self width];
 	short numRows = [self height];
     
-    for (h = 0; h < numRows; h++) 
+	
+	if (buffer->numBytes != 623368) {
+		printf("invalid frame data size %d\n", buffer->numBytes);
+		return NO;
+	}
+#if 1
+//	printf("nextImageBufferRowBytes %d %d\n", nextImageBufferRowBytes, nextImageBufferBPP);
+	// dst[0] = R, dst[1] = G, dst[2] = B
+	int r, g, b;
+    for (h = 0; h < numRows / 2; h++) 
     {
-        dst = nextImageBuffer + h * nextImageBufferRowBytes;
+        dst = nextImageBuffer + h * nextImageBufferRowBytes * 2;
         
         for (w = 0; w < numColumns; w++) 
 		{
-            dst[0] = src[0];
-            dst[1] = src[0];
-            dst[2] = src[0];
-            ++src;
+            r = (src[0] & 0x1f);
+            g = ((src[0] >> 5) | ((src[1] & 0x07) << 3));
+            b = (src[1] >> 3);
+            dst[0] = r * 0xff / 0x1f;
+            dst[1] = g * 0xff / 0x3f;
+            dst[2] = b * 0xff / 0x1f;
+            src += 2;
             dst += nextImageBufferBPP;
         }
+
 	}
-	
+
+	src = buffer->buffer + 312324;
+	for (h = 0; h < numRows / 2; h++) 
+    {
+        dst = nextImageBuffer + h * nextImageBufferRowBytes * 2 + nextImageBufferRowBytes;
+        
+        for (w = 0; w < numColumns; w++) 
+		{
+            r = (src[0] & 0x1f);
+            g = ((src[0] >> 5) | ((src[1] & 0x07) << 3));
+            b = (src[1] >> 3);
+            dst[0] = r * 0xff / 0x1f;
+            dst[1] = g * 0xff / 0x3f;
+            dst[2] = b * 0xff / 0x1f;
+            src += 2;
+            dst += nextImageBufferBPP;
+        }
+		
+	}
+#else
+	yuv2rgb (640,240,YUVCPIA422Style,src,nextImageBuffer,nextImageBufferBPP,0,nextImageBufferRowBytes,0);
+	yuv2rgb (640,240,YUVCPIA422Style,src + 312324,nextImageBuffer + nextImageBufferRowBytes,nextImageBufferBPP,0,nextImageBufferRowBytes,0);
+#endif
+
     return YES;
 }
 
