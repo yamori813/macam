@@ -47,6 +47,10 @@
 			 [NSNumber numberWithUnsignedShort:0x2821], @"idProduct", // EM2820 default
 			 [NSNumber numberWithUnsignedShort:0xeb1a], @"idVendor", // Empia Technology, Inc
 			 @"EMPIA EM2820", @"name", NULL], 
+		[NSDictionary dictionaryWithObjectsAndKeys:
+			 [NSNumber numberWithUnsignedShort:0x0515], @"idProduct",
+			 [NSNumber numberWithUnsignedShort:0x04bb], @"idVendor",
+			 @"IO-Data GV-MVP/SZ", @"name", NULL],
 			
         // More entries can easily be added for more cameras
         
