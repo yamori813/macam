@@ -401,6 +401,11 @@ enum em28xx_chip_id {
 #define TVP5150_FULL_FIELD_MODE_REG 0xfc /* Full field mode register */
 /* Reserved	FDh-FFh */
 
+struct i2c_reg {
+	unsigned char addr;
+	unsigned char val;
+};
+
 @interface KworldTV300UDriver : GenericDriver 
 {
 	UInt8 * decodingBuffer;
