@@ -336,7 +336,7 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
     if(sensorType == SENS_SAA7111A_WITH_FI1236MK2 || sensorType == SENS_SAA7111A) {
         b=SAA7111A_BRIGHTNESS(CLAMP_UNIT(v));
         if ((b!=SAA7111A_BRIGHTNESS(brightness)))
-            [self i2cWrite:OV7610_REG_BRT val:b];
+		[self i2cWrite:0x0a val:b];
     } else if(sensorType == SENS_OV7610 || sensorType == SENS_OV7620 ||
         SENS_OV6620) {
         b=OV7610_BRIGHTNESS(CLAMP_UNIT(v));
@@ -370,7 +370,7 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
     if(sensorType == SENS_SAA7111A_WITH_FI1236MK2 || sensorType == SENS_SAA7111A) {
         b=SAA7111A_SATURATION(CLAMP_UNIT(v));
         if (b!=SAA7111A_SATURATION(saturation))
-            [self i2cWrite:OV7610_REG_SAT val:b];
+			[self i2cWrite:0x0c val:b];
     } else if(sensorType == SENS_OV7610 || sensorType == SENS_OV7620 ||
         SENS_OV6620) {
         b=OV7610_SATURATION(CLAMP_UNIT(v));
@@ -378,6 +378,19 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
             [self i2cWrite:0x03 val:b];
     }
     [super setSaturation:v];
+}
+
+- (BOOL) canSetHue { return YES; }
+- (void) setHue:(float)v {
+    UInt8 b;
+    if (![self canSetHue]) return;
+    if(sensorType == SENS_SAA7111A_WITH_FI1236MK2 || sensorType == SENS_SAA7111A) {
+        b=SAA7111A_HUE(CLAMP_UNIT(v));
+		[self i2cWrite:0x0d val:b];
+    } else if(sensorType == SENS_OV7610 || sensorType == SENS_OV7620 ||
+			  SENS_OV6620) {
+    }
+    [super setHue:v];
 }
 
 - (BOOL) canSetGamma { return NO; }
@@ -755,8 +768,10 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
             [self i2cWrite:0x15 val:0x00];
             [self i2cWrite:0x16 val:0x00];
             [self i2cWrite:0x17 val:0x00];
-//            [self i2cWrite:0x02 val:0xc0]; // composit
-		   [self i2cWrite:0x02 val:0xc2]; // tuner
+			if (sensorType == SENS_SAA7111A_WITH_FI1236MK2)
+				[self i2cWrite:0x02 val:0xc2]; // tuner
+		   else
+			   [self i2cWrite:0x02 val:0xc0]; // composit
 //		   [self i2cWrite:0x02 val:0xc7]; // S Video
 
 #ifdef OV511_DEBUG

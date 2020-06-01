@@ -55,9 +55,10 @@ Doing these amounts of defines is often called bad style. We should find a bette
 //Conversions into the values of the camera
 
 #define SAA7111A_BRIGHTNESS(a) ((UInt8)(a*255.0f))
-#define SAA7111A_CONTRAST(a) ((UInt8)(a*127.0f))
+#define SAA7111A_CONTRAST(a) ((UInt8)(a*255.0f))
+#define SAA7111A_SATURATION(a) ((UInt8)(a*255.0f))
+#define SAA7111A_HUE(a) ((UInt8)(a*255.0f))
 #define SAA7111A_GAMMA(a) ((UInt8)(a*31.0f))
-#define SAA7111A_SATURATION(a) ((UInt8)(a*127.0f))
 #define SAA7111A_GAIN(a) ((UInt8)(a*63.0f))
 #define SAA7111A_SHUTTER(a) ((UInt8)(a*255.0f))
 #define SAA7111A_AUTOGAIN(a) ((a)?0x0:0xff)
