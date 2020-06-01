@@ -307,9 +307,11 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
     chunkFooter=0;
 //set camera video defaults
     if(sensorType == SENS_SAA7111A_WITH_FI1236MK2 || sensorType == SENS_SAA7111A) {
-        [self setBrightness:0.584f];
-        [self setContrast:0.567f];
-        [self setSaturation:0.630f];
+        [self setBrightness:((1.0f / 256) * 0x95)];
+        [self setContrast:((1.0f / 256) * 0x48)];
+        [self setSaturation:((1.0f / 256) * 0x48)];
+        [self setHue:((1.0f / 256) * 0x00)];
+		
     } else if(sensorType == SENS_OV7610 || sensorType == SENS_OV7620 ||
         SENS_OV6620) {
         [self setBrightness:0.5f];
@@ -756,10 +758,6 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
 //            [self i2cWrite:0x08 val:0xc8];
             [self i2cWrite:0x08 val:0x88];
             [self i2cWrite:0x09 val:0x01];
-            [self i2cWrite:0x0a val:0x95];
-            [self i2cWrite:0x0b val:0x48];
-            [self i2cWrite:0x0c val:0x50];
-            [self i2cWrite:0x0d val:0x00];
             [self i2cWrite:0x0f val:0x00];
             [self i2cWrite:0x11 val:0x0c];
             [self i2cWrite:0x12 val:0x00];
@@ -774,6 +772,11 @@ static unsigned char uvQuanTable511[] = OV511_UVQUANTABLE;
 			   [self i2cWrite:0x02 val:0xc0]; // composit
 //		   [self i2cWrite:0x02 val:0xc7]; // S Video
 
+		   [self setBrightness:((1.0f / 256) * 0x95)];
+		   [self setContrast:((1.0f / 256) * 0x48)];
+		   [self setSaturation:((1.0f / 256) * 0x50)];
+		   [self setHue:((1.0f / 256) * 0x00)];
+		   
 #ifdef OV511_DEBUG
             NSLog(@"SAA7111A status = %02x\n",  [self i2cRead:0x1f]);
 #endif
