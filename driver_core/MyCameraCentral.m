@@ -87,6 +87,7 @@
 #import "TP68xxDriver.h"
 #import "SQ905C.h"
 #import "UVCDriver.h"
+#import "USBVisionDriver.h"
 
 #include "unistd.h"
 
@@ -422,6 +423,8 @@ MyCameraCentral* sharedCameraCentral=NULL;
     [self registerCameraDriver:[PicoDriver class]];
     
     [self registerCameraDriver:[UVCDriver class]];  // There should be another way to invoke this driver (i.e. matching driver classes)
+
+    [self registerCameraDriver:[USBVisionDriver class]];
     
     
     // Based on gspca (subclass SPCA5xxDriver)

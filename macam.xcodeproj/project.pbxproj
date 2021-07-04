@@ -654,6 +654,10 @@
 		F5B2EF320A1B8861001423D7 /* QuickCamVCDriver.m in Sources */ = {isa = PBXBuildFile; fileRef = F5B2EF2E0A1B8861001423D7 /* QuickCamVCDriver.m */; };
 		F5B2EF330A1B8861001423D7 /* QuickCamVCDriver.h in Headers */ = {isa = PBXBuildFile; fileRef = F5B2EF2D0A1B8861001423D7 /* QuickCamVCDriver.h */; };
 		F5B2EF340A1B8861001423D7 /* QuickCamVCDriver.m in Sources */ = {isa = PBXBuildFile; fileRef = F5B2EF2E0A1B8861001423D7 /* QuickCamVCDriver.m */; };
+		F5B550FC2690376E006F23DD /* USBVisionDriver.h in Headers */ = {isa = PBXBuildFile; fileRef = F5B550FA2690376E006F23DD /* USBVisionDriver.h */; };
+		F5B550FD2690376E006F23DD /* USBVisionDriver.m in Sources */ = {isa = PBXBuildFile; fileRef = F5B550FB2690376E006F23DD /* USBVisionDriver.m */; };
+		F5B550FE2690376E006F23DD /* USBVisionDriver.h in Headers */ = {isa = PBXBuildFile; fileRef = F5B550FA2690376E006F23DD /* USBVisionDriver.h */; };
+		F5B550FF2690376E006F23DD /* USBVisionDriver.m in Sources */ = {isa = PBXBuildFile; fileRef = F5B550FB2690376E006F23DD /* USBVisionDriver.m */; };
 		F5B92A9D0A39F1E700BAF43D /* SPCA501ADriver.h in Headers */ = {isa = PBXBuildFile; fileRef = F5B92A9B0A39F1E700BAF43D /* SPCA501ADriver.h */; };
 		F5B92A9E0A39F1E700BAF43D /* SPCA501ADriver.m in Sources */ = {isa = PBXBuildFile; fileRef = F5B92A9C0A39F1E700BAF43D /* SPCA501ADriver.m */; };
 		F5B92A9F0A39F1E800BAF43D /* SPCA501ADriver.h in Headers */ = {isa = PBXBuildFile; fileRef = F5B92A9B0A39F1E700BAF43D /* SPCA501ADriver.h */; };
@@ -1128,6 +1132,8 @@
 		F5B2EF030A1AFD9E001423D7 /* tas5130c.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; name = tas5130c.h; path = spca5xx_files/tas5130c.h; sourceTree = "<group>"; };
 		F5B2EF2D0A1B8861001423D7 /* QuickCamVCDriver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = QuickCamVCDriver.h; sourceTree = "<group>"; };
 		F5B2EF2E0A1B8861001423D7 /* QuickCamVCDriver.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = QuickCamVCDriver.m; sourceTree = "<group>"; };
+		F5B550FA2690376E006F23DD /* USBVisionDriver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = USBVisionDriver.h; sourceTree = "<group>"; };
+		F5B550FB2690376E006F23DD /* USBVisionDriver.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = USBVisionDriver.m; sourceTree = "<group>"; };
 		F5B92A9B0A39F1E700BAF43D /* SPCA501ADriver.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = SPCA501ADriver.h; sourceTree = "<group>"; };
 		F5B92A9C0A39F1E700BAF43D /* SPCA501ADriver.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = SPCA501ADriver.m; sourceTree = "<group>"; };
 		F5B9568C0250D31A0166DE1F /* MyCameraCentral.m */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.objc; path = MyCameraCentral.m; sourceTree = "<group>"; };
@@ -1749,6 +1755,8 @@
 				F50132BF0FA8D9C6006E1027 /* SQ905C.m */,
 				F55679CE0FB4BA4C00DA9877 /* UVCDriver.h */,
 				F55679CF0FB4BA4C00DA9877 /* UVCDriver.m */,
+				F5B550FA2690376E006F23DD /* USBVisionDriver.h */,
+				F5B550FB2690376E006F23DD /* USBVisionDriver.m */,
 			);
 			path = cameras;
 			sourceTree = "<group>";
@@ -1945,6 +1953,7 @@
 				F5025AE10F795A70009D9BED /* TP68xxDriver.h in Headers */,
 				F50132C40FA8D9C6006E1027 /* SQ905C.h in Headers */,
 				F55679D20FB4BA4C00DA9877 /* UVCDriver.h in Headers */,
+				F5B550FC2690376E006F23DD /* USBVisionDriver.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2083,6 +2092,7 @@
 				F5025ADF0F795A70009D9BED /* TP68xxDriver.h in Headers */,
 				F50132C00FA8D9C6006E1027 /* SQ905C.h in Headers */,
 				F55679D40FB4BA4C00DA9877 /* UVCDriver.h in Headers */,
+				F5B550FE2690376E006F23DD /* USBVisionDriver.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2571,6 +2581,7 @@
 				F50132C50FA8D9C6006E1027 /* SQ905C.m in Sources */,
 				F551A4A00FAF76DD00A8C6FB /* PAC7311Driver.m in Sources */,
 				F55679D30FB4BA4C00DA9877 /* UVCDriver.m in Sources */,
+				F5B550FD2690376E006F23DD /* USBVisionDriver.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2682,6 +2693,7 @@
 				F5025AE00F795A70009D9BED /* TP68xxDriver.m in Sources */,
 				F50132C10FA8D9C6006E1027 /* SQ905C.m in Sources */,
 				F55679D50FB4BA4C00DA9877 /* UVCDriver.m in Sources */,
+				F5B550FF2690376E006F23DD /* USBVisionDriver.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
