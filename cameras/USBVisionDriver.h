@@ -6,7 +6,7 @@
 //
 //  Created by hxr on 3/21/06.
 //  Copyright (C) 2006 HXR (hxr@users.sourceforge.net). 
-//  Copyright (C) 2021 Hiroki Mori. 
+//  Copyright (C) 2021-2022 Hiroki Mori. 
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -125,11 +125,37 @@
 #define USBVISION_MAX_DIST_H		0x3D
 #define USBVISION_OP_CODE		0x33
 
+#define MAX_BYTES_PER_PIXEL		4
+
+#define MIN_FRAME_WIDTH			64
+#define MAX_USB_WIDTH			320  //384
+#define MAX_FRAME_WIDTH			320  //384			/*streching sometimes causes crashes*/
+
+#define MIN_FRAME_HEIGHT		48
+#define MAX_USB_HEIGHT			240  //288
+#define MAX_FRAME_HEIGHT		240  //288			/*Streching sometimes causes crashes*/
+
+#define MAX_FRAME_SIZE     		(MAX_FRAME_WIDTH * MAX_FRAME_HEIGHT * MAX_BYTES_PER_PIXEL)
+#define USBVISION_CLIPMASK_SIZE		(MAX_FRAME_WIDTH * MAX_FRAME_HEIGHT / 8) //bytesize of clipmask
+
+#define USBVISION_URB_FRAMES		32
+#define USBVISION_MAX_ISOC_PACKET_SIZE 	959			// NT1003 Specs Document says 1023
+
+#define USBVISION_NUM_HEADERMARKER	20
+#define USBVISION_NUMFRAMES		2
+#define USBVISION_NUMSBUF		2
+
+#define USBVISION_POWEROFF_TIME		3 * (HZ)		// 3 seconds
+
 #define FRAMERATE_MIN	0
 #define FRAMERATE_MAX	31
 
-#define USBVISION_IIC_LRACK                     0x20
-#define USBVISION_IIC_LRNACK                    0x30
+#define USBVISION_SOFT_MODE			0x00
+#define USBVISION_SIO_MODE			0x10
+#define USBVISION_IIC_LRACK_MODE	0x20
+#define USBVISION_IIC_LRNACK_MODE	0x30
+#define USBVISION_CAM1_MODE			0x40
+#define USBVISION_CAM2_MODE			0x50
 
 enum {
 	ISOC_MODE_YUV422 = 0x03,
@@ -137,11 +163,22 @@ enum {
 	ISOC_MODE_COMPRESS = 0x60,
 };
 
+#define SAA7111A_BRIGHTNESS(a) ((UInt8)(a*255.0f))
+#define SAA7111A_CONTRAST(a) ((UInt8)(a*255.0f))
+#define SAA7111A_SATURATION(a) ((UInt8)(a*255.0f))
+#define SAA7111A_HUE(a) ((UInt8)(a*255.0f))
+#define SAA7111A_GAMMA(a) ((UInt8)(a*31.0f))
+#define SAA7111A_GAIN(a) ((UInt8)(a*63.0f))
+#define SAA7111A_SHUTTER(a) ((UInt8)(a*255.0f))
+#define SAA7111A_AUTOGAIN(a) ((a)?0x0:0xff)
+#define SAA7111A_POWERSAVE(a) ((a)?0x0:0xff)
+#define CLAMP_UNIT(a) (CLAMP((a),0.0f,1.0f))
+
 @interface USBVisionDriver : GenericDriver 
 {
     // Add any data structure that you need to keep around
     // i.e. decoding buffers, decoding structures etc
-	UInt8 * decodingBuffer;
+	UInt8 * decodingBuffer;	
 }
 
 + (NSArray *) cameraUsbDescriptions;

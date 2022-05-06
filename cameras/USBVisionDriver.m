@@ -6,7 +6,7 @@
 //
 //  Created by hxr on 3/21/06.
 //  Copyright (C) 2006 HXR (hxr@users.sourceforge.net). 
-//  Copyright (C) 2021 Hiroki Mori. 
+//  Copyright (C) 2021-2022 Hiroki Mori. 
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -39,30 +39,31 @@
 
 #include "USB_VendorProductIDs.h"
 
+#import "yuv2rgb.h"
 
 @implementation USBVisionDriver
 
 
 //static int saa7111_write(struct i2c_client *client, unsigned char subaddr,
 //						 unsigned char data)
-- (int) saa7111Write:(unsigned char)subaddr date:(unsigned char)data
+- (int) saa7111Write:(unsigned char)subaddr data:(unsigned char)data
 {
 	char buf[2];
 
 	buf[0] = subaddr;
 	buf[1] = data;
-	[self i2cWrite:0x48>>1 buf:buf len:2];
+	[self i2cWrite:0x48 buf:buf len:2];
 }
 
 //static int saa7111_read(struct i2c_client *client, unsigned char subaddr)
 - (int) saa7111Read:subaddr
 {
-	char buf[2];
+	unsigned char buf[1];
 	
 	buf[0] = subaddr;
-	[self i2cWrite:0x48>>1 buf:buf len:2];
-	[self i2cRead:0x48>>1 buf:buf len:1];
-	return buf[1];
+	[self i2cWrite:0x48 buf:buf len:1];
+	[self i2cRead:0x49 buf:buf len:1];
+	return buf[0];
 }
 
 // usbvision_i2c_write_max4
@@ -73,8 +74,7 @@
 	unsigned char value[6];
 	unsigned char ser_cont;
 	
-//	ser_cont = (len & 0x07) | 0x10;
-	ser_cont = (len & 0x07);
+	ser_cont = (len & 0x07) | 0x10;
 
 	value[0] = addr;
 	value[1] = ser_cont;
@@ -88,8 +88,7 @@
 								 wIndex:USBVISION_SER_ADRS
 									buf:value
 									len:len + 2];
-//		rc = [self setRegister:USBVISION_SER_CONT toValue:(len & 0x07) | 0x10];
-		rc = [self setRegister:USBVISION_SER_CONT toValue:(len & 0x07)];
+		rc = [self setRegister:USBVISION_SER_CONT toValue:(len & 0x07) | 0x10];
 		if (rc == -1)
 			return rc;
 
@@ -107,8 +106,10 @@
 		if (rc < 0)
 			return rc;
 		
-		if (--retries < 0)
+		if (--retries < 0) {
+			NSLog(@"i2cWriteMax4 error");
 			return -1;
+		}
 	}
 	return len;
 }	
@@ -145,12 +146,11 @@
 		rc = [self setRegister:USBVISION_SER_ADRS toValue:addr];
 		if (rc == -1)
 			return rc;
-		NSLog(@"I2CMAX 1 %d", len);
+
 		/* Initiate byte read cycle                    */
 		/* USBVISION_SER_CONT <- d0-d2 n. of bytes to r/w */
 		/*                    d3 0=Wr 1=Rd             */	
-//		rc = [self setRegister:USBVISION_SER_CONT toValue:(len & 0x07) | 0x18];
-		rc = [self setRegister:USBVISION_SER_CONT toValue:(len & 0x07) | 0x08];
+		rc = [self setRegister:USBVISION_SER_CONT toValue:(len & 0x07) | 0x18];
 		if (rc == -1)
 			return rc;
 
@@ -158,7 +158,6 @@
 			/* USBVISION_SER_CONT -> d4 == 0 busy */
 			rc = [self getRegister:USBVISION_SER_CONT];
 		} while (rc > 0 && ((rc & 0x10) != 0));
-		NSLog(@"I2CMAX 2 %d", rc);
 		
 		/* USBVISION_SER_CONT -> d5 == 1 Not ack */
 		if ((rc & 0x20) == 0)	/* Ack? */
@@ -169,8 +168,10 @@
 		if (rc < 0)
 			return rc;
 		
-		if (--retries < 0)
+		if (--retries < 0) {
+			NSLog(@"i2cReadMax4 error");
 			return -1;
+		}
 	}
 
 	switch (len) {
@@ -184,7 +185,6 @@
 			buf[0] = [self getRegister:USBVISION_SER_DAT1];
 			break;
 	}
-	NSLog(@"I2CMAX 3");
 
 	return len;	
 }
@@ -223,8 +223,7 @@
 											wIndex:reg
 											   buf:buffer
 											   len:1];
-    
-    return (ok) ? buffer[0] : -1;
+    return (ok);
 }
 
 // usbvision_read_reg
@@ -240,6 +239,164 @@
 							 len:1];
     
     return (ok) ? buffer[0] : -1;
+}
+
+// usbvision_set_video_format
+- (int) setVideoFormat:(int)format
+{
+	unsigned char value[2];
+
+	value[0] = 0x0A;  //TODO: See the effect of the filter
+	value[1] = format;
+
+	BOOL ok = [self usbControlCmdOnPipe:1 withBRequestType:USBmakebmRequestType(kUSBOut, kUSBVendor, kUSBEndpoint)
+							   bRequest:USBVISION_OP_CODE
+								 wValue:0
+								 wIndex:USBVISION_FILT_CONT
+									buf:value
+									len:2];
+	return ok;
+}
+
+// usbvision_set_dram_settings
+- (int) setDramSettings
+{
+	unsigned char value[8];
+
+	value[0] = 0x42;
+	value[1] = 0x00;
+	value[2] = 0xff;
+	value[3] = 0x00;
+	value[4] = 0x00;
+	value[5] = 0x00;
+	value[6] = 0x00;
+	value[7] = 0xff;
+	
+	BOOL ok = [self usbControlCmdOnPipe:1 withBRequestType:USBmakebmRequestType(kUSBOut, kUSBVendor, kUSBEndpoint)
+							   bRequest:USBVISION_OP_CODE
+								 wValue:0
+								 wIndex:USBVISION_DRM_PRM1
+									buf:value
+									len:8];
+
+	/* Restart the video buffer logic */
+	[self setRegister:USBVISION_DRM_CONT toValue:USBVISION_RES_UR | USBVISION_RES_FDL | USBVISION_RES_VDW];
+
+	[self setRegister:USBVISION_DRM_CONT toValue:0];
+
+	return ok;
+}
+
+// usbvision_set_input
+- (int) setInput
+{
+	unsigned char value[8];
+	
+	value[0] = USBVISION_16_422_SYNC;
+	
+	[self setRegister:USBVISION_VIN_REG1 toValue:value[0]];
+
+	value[0] = 0xD0;
+	value[1] = 0x02;	//0x02D0 -> 720 Input video line length
+	value[2] = 0xF0;
+	value[3] = 0x00;	//0x00F0 -> 240 Input video number of lines
+	value[4] = 0x50;
+	value[5] = 0x00;	//0x0050 -> 80 Input video h offset
+	value[6] = 0x10;
+	value[7] = 0x00;	//0x0010 -> 16 Input video v offset
+	
+	BOOL ok = [self usbControlCmdOnPipe:1 withBRequestType:USBmakebmRequestType(kUSBOut, kUSBVendor, kUSBEndpoint)
+							   bRequest:USBVISION_OP_CODE
+								 wValue:0
+								 wIndex:USBVISION_LXSIZE_I
+									buf:value
+									len:8];
+	
+	[self setRegister:USBVISION_DVI_YUV toValue:0];
+
+	return ok;
+}
+
+
+// usbvision_set_output
+- (int) setOutput:(int)width height:(int)height
+{
+	unsigned char value[4];
+
+	value[0] = width & 0xff;		//LSB
+	value[1] = (width >> 8) & 0x03;	//MSB
+	value[2] = height & 0xff;		//LSB
+	value[3] = (height >> 8) & 0x03;	//MSB
+
+	BOOL ok = [self usbControlCmdOnPipe:1 withBRequestType:USBmakebmRequestType(kUSBOut, kUSBVendor, kUSBEndpoint)
+							   bRequest:USBVISION_OP_CODE
+								 wValue:0
+								 wIndex:USBVISION_LXSIZE_O
+									buf:value
+									len:4];
+
+	[self setRegister:USBVISION_FRM_RATE toValue:FRAMERATE_MAX];
+	
+	return ok;
+}
+
+// usbvision_set_compress_params
+- (int) setCompressParams
+{
+	unsigned char value[4];
+	
+	value[0] = 0x0F;    // Intra-Compression cycle
+	value[1] = 0x01;    // Reg.45 one line per strip
+	value[2] = 0x00;    // Reg.46 Force intra mode on all new frames
+	value[3] = 0x00;    // Reg.47 FORCE_UP <- 0 normal operation (not force)
+	value[4] = 0xA2;    // Reg.48 BUF_THR I'm not sure if this does something in not compressed mode.
+	value[5] = 0x00;    // Reg.49 DVI_YUV This has nothing to do with compression
+
+	BOOL ok = [self usbControlCmdOnPipe:1 withBRequestType:USBmakebmRequestType(kUSBOut, kUSBVendor, kUSBEndpoint)
+							   bRequest:USBVISION_OP_CODE
+								 wValue:0
+								 wIndex:USBVISION_INTRA_CYC
+									buf:value
+									len:5];	
+	
+	value[0] =  20; // PCM Threshold 1
+	value[1] =  12; // PCM Threshold 2
+	value[2] = 255; // Distorsion Threshold d7-d0
+	value[3] =   0; // Distorsion Threshold d11-d8
+	value[4] =  43; // Max Distorsion d7-d0
+	value[5] =   0; // Max Distorsion d8
+	
+	ok = [self usbControlCmdOnPipe:1 withBRequestType:USBmakebmRequestType(kUSBOut, kUSBVendor, kUSBEndpoint)
+							   bRequest:USBVISION_OP_CODE
+								 wValue:0
+								 wIndex:USBVISION_PCM_THR1
+									buf:value
+									len:6];	
+}
+
+// usbvision_begin_streaming
+- (void) beginStreaming
+{
+
+	[self setRegister:USBVISION_VIN_REG2 toValue:USBVISION_NOHVALID];
+
+	while ([self getRegister:USBVISION_STATUS_REG] == 0x01)
+		;
+	NSLog(@"MORIMORI NT1003 STATUS_REG %x", [self getRegister:USBVISION_STATUS_REG]);
+}
+
+// usbvision_restart_isoc
+- (void) restartIsoc
+{
+
+	[self setRegister:USBVISION_PWR_REG toValue:USBVISION_SSPND_EN | USBVISION_PWR_VID];
+	
+	[self setRegister:USBVISION_PWR_REG toValue:USBVISION_SSPND_EN | USBVISION_PWR_VID | USBVISION_RES2];
+	
+	[self setRegister:USBVISION_VIN_REG2 toValue:USBVISION_KEEP_BLANK | USBVISION_NOHVALID];
+
+//	while (([self getRegister:USBVISION_STATUS_REG] && 0x01) != 1)
+//		;
 }
 
 //
@@ -282,6 +439,10 @@
     
     // Allocate memory
     // Initialize variable and other structures
+	MALLOC(decodingBuffer, UInt8 *, 356 * 292 + 1000, "decodingBuffer");
+	
+	compressionType = gspcaCompression;
+	
 	return self;
 }
 
@@ -290,31 +451,19 @@
 //
 - (BOOL) supportsResolution: (CameraResolution) res fps: (short) rate 
 {
- 
-	[self setRegister:USBVISION_PWR_REG toValue:USBVISION_SSPND_EN | USBVISION_RES2];
-    int i;
-	for(i = 0; i <= 0x10; ++i) {
-		NSLog(@"MORIMORI %x %d", i, [self getRegister:i]);
-	}
-	[self setRegister:USBVISION_SER_MODE toValue:USBVISION_IIC_LRNACK];
 
-	[self saa7111Write:0x02 date:0x01];
-	NSLog(@"MORIMORI I2C %x %x", 2, [self saa7111Read:0x02]);
-	[self saa7111Write:0x03 date:0x07];
-	NSLog(@"MORIMORI I2C %x %x", 2, [self saa7111Read:0x02]);
-    switch (res) 
+	switch (res) 
     {
-        case ResolutionCIF:
-            if (rate > 18) 
+        case ResolutionSIF:
+			if (rate > 10) 
                 return NO;
+
             return YES;
-            break;
             
         default: 
             return NO;
     }
 
-	
 }
 
 //
@@ -325,7 +474,7 @@
 	if (rate) 
         *rate = 5;
     
-	return ResolutionCIF;
+	return ResolutionSIF;
 }
 
 //
@@ -333,7 +482,8 @@
 //
 - (UInt8) getGrabbingPipe
 {
-    return 1;
+
+    return 2;
 }
 
 //
@@ -342,26 +492,39 @@
 //
 - (BOOL) setGrabInterfacePipe
 {
-    return [self usbSetAltInterfaceTo:8 testPipe:[self getGrabbingPipe]];
+
+	return [self usbMaximizeBandwidth:[self getGrabbingPipe]  suggestedAltInterface:-1  numAltInterfaces:9];
 }
 
 //
 // This is an example that will have to be tailored to the specific camera or chip
 // Scan the frame and return the results
 //
+
+int lastLength;
+
 IsocFrameResult  USBVisionIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer, 
                                          UInt32 * dataStart, UInt32 * dataLength, 
                                          UInt32 * tailStart, UInt32 * tailLength, 
                                          GenericFrameInfo * frameInfo)
 {
     int position, frameLength = frame->frActCount;
-	NSLog(@"ST");
     
-    *dataStart = 0;
-    *dataLength = frameLength;
-    
-    *tailStart = frameLength;
-    *tailLength = 0;
+//	NSLog(@"MORIMORI USBVisionIsocFrameScanner %d %02x", frameLength, buffer[0]);
+	if (lastLength == 0 &&  buffer[0] == 0x55 && buffer[1] == 0xaa && buffer[2] == 12) {   // Start of Video-Frame Pattern
+//		NSLog(@"MORIMORI Start of Video-Frame Pattern");
+		*dataStart = 12;
+		*dataLength = frameLength - 12;
+		*tailStart = frameLength;
+		*tailLength = 0;
+		return newChunkFrame;
+	} else {
+		*dataStart = 0;
+		*dataLength = frameLength;
+		*tailStart = frameLength;
+		*tailLength = 0;
+	}
+	lastLength = frameLength;
     
     if (frameLength < 1) 
         return invalidFrame;
@@ -383,6 +546,9 @@ IsocFrameResult  USBVisionIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffe
 //
 - (void) setIsocFrameFunctions
 {
+
+	lastLength = 0;
+	
     grabContext.isocFrameScanner = USBVisionIsocFrameScanner;
     grabContext.isocDataCopier = genericIsocDataCopier;
 }
@@ -394,7 +560,14 @@ IsocFrameResult  USBVisionIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffe
 {
     CameraError error = CameraErrorOK;
 	
-	NSLog(@"MORIMORI start");
+	
+	NSLog(@"MORIMORI startup");
+	
+	int stat = [self saa7111Read:0x1f];
+	NSLog(@"MORIMORI initSAA7111 %02x CODE = %d, FIDT = %d, HLCK = %d, STTC = %d", stat,
+		  stat & 1, (stat >> 5) & 1, (stat >> 6) & 1, (stat >> 7) & 1);
+
+	[self beginStreaming];
 
     return error == CameraErrorOK;
 }
@@ -410,34 +583,179 @@ IsocFrameResult  USBVisionIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffe
     [self usbSetAltInterfaceTo:0 testPipe:[self getGrabbingPipe]]; // Must set alt interface to normal
 }
 
+- (void) startupCamera
+{
+	/*
+    NSLog(@"MORIMORI startupCamera");
+	int i, j;
+	printf("NT1003 Register\n");
+	for(j = 0; j < 5; ++j) {
+		for(i = 0; i <= 0x10; ++i) {
+			printf("%02x ", [self getRegister:i + j * 0x10]);
+		}
+		printf("\n");
+	}
+	 */
+	
+	[self setVideoFormat:ISOC_MODE_YUV422];
+	[self setDramSettings];
+	[self setCompressParams];
+	[self setInput];
+	[self setOutput:MAX_USB_WIDTH height:MAX_USB_HEIGHT];
+	
+	[self restartIsoc];
+	[self setRegister:USBVISION_SER_MODE toValue:USBVISION_IIC_LRNACK_MODE];
+	/*
+	 printf("SAA7111 Register\n");
+	 for(j = 0; j < 2; ++j) {
+	 for(i = 0; i <= 0x10; ++i) {
+	 printf("%02x ", [self saa7111Read:i + j * 0x10]);
+	 }
+	 printf("\n");
+	 }
+	 */
+	
+	[self initSAA7111];
+	
+    [super startupCamera];
+}
+
 //
 // This is the method that takes the raw chunk data and turns it into an image
 //
-- (BOOL) decodeBuffer: (GenericChunkBuffer *) buffer
+//- (BOOL) decodeBuffer: (GenericChunkBuffer *) buffer
+- (BOOL) decodeBufferGSPCA: (GenericChunkBuffer *) buffer
 {
-    BOOL ok = YES;
-	short rawWidth  = [self width];
-	short rawHeight = [self height];
+	long w, h;
+    UInt8 * src = buffer->buffer;
+    UInt8 * dst;
     
-	// Decode the bytes
+	short numColumns  = [self width];
+	short numRows = [self height];
     
-//  Much decoding to be done here
-    
-    // Turn the Bayer data into an RGB image
-    
-    [bayerConverter setSourceFormat:3]; // This is probably different
-    [bayerConverter setSourceWidth:rawWidth height:rawHeight];
-    [bayerConverter setDestinationWidth:rawWidth height:rawHeight];
-    [bayerConverter convertFromSrc:decodingBuffer
-                            toDest:nextImageBuffer
-                       srcRowBytes:rawWidth
-                       dstRowBytes:nextImageBufferRowBytes
-                            dstBPP:nextImageBufferBPP
-                              flip:hFlip
-                         rotate180:rotate]; // This might be different too
-    
-    return ok;
+	if (buffer->numBytes != 153600) {
+		printf("invalid frame data size %d\n", buffer->numBytes);
+		return NO;
+	}
+
+#if 0
+	//	printf("nextImageBufferRowBytes %d %d\n", nextImageBufferRowBytes, nextImageBufferBPP);
+	// dst[0] = R, dst[1] = G, dst[2] = B
+	int r, g, b;
+    for (h = 0; h < numRows; h++) 
+    {
+        dst = nextImageBuffer + h * nextImageBufferRowBytes * 2;
+        
+        for (w = 0; w < numColumns; w++) 
+		{
+            r = (src[0] & 0x1f);
+            g = ((src[0] >> 5) | ((src[1] & 0x07) << 3));
+            b = (src[1] >> 3);
+            dst[0] = r * 0xff / 0x1f;
+            dst[1] = g * 0xff / 0x3f;
+            dst[2] = b * 0xff / 0x1f;
+            src += 2;
+            dst += nextImageBufferBPP;
+        }
+		
+	}
+#else
+	yuv2rgb (numColumns,numRows,YUVCPIA422Style,src,nextImageBuffer,nextImageBufferBPP,numColumns*2,nextImageBufferRowBytes,0);
+	yuv2rgb (numColumns,numRows,YUVCPIA422Style,src,nextImageBuffer+nextImageBufferBPP*numColumns,nextImageBufferBPP,numColumns*2,nextImageBufferRowBytes,0);
+#endif
+    return YES;
 }
 
+- (BOOL) canSetBrightness { return YES; }
+- (void) setBrightness:(float)v{
+    UInt8 b;
+    if (![self canSetBrightness]) return;
+	b=SAA7111A_BRIGHTNESS(CLAMP_UNIT(v));
+	if ((b!=SAA7111A_BRIGHTNESS(brightness)))
+		[self saa7111Write:0x0a data:b];
+    [super setBrightness:v];
+}
+
+- (BOOL) canSetContrast { return YES; }
+- (void) setContrast:(float)v {
+    UInt8 b;
+    if (![self canSetContrast]) return;
+	b=SAA7111A_CONTRAST(CLAMP_UNIT(v));
+	if (b!=SAA7111A_CONTRAST(contrast))
+		[self saa7111Write:0x0b data:b];
+    [super setContrast:v];
+}
+
+- (BOOL) canSetSaturation { return YES; }
+- (void) setSaturation:(float)v {
+    UInt8 b;
+    if (![self canSetSaturation]) return;
+	b=SAA7111A_SATURATION(CLAMP_UNIT(v));
+	if (b!=SAA7111A_SATURATION(saturation))
+		[self saa7111Write:0x0c data:b];
+    [super setSaturation:v];
+}
+
+- (BOOL) canSetHue { return YES; }
+- (void) setHue:(float)v {
+    UInt8 b;
+    if (![self canSetHue]) return;
+	b=SAA7111A_HUE(CLAMP_UNIT(v));
+	[self saa7111Write:0x0d data:b];
+    [super setHue:v];
+}
+
+
+- (void) initSAA7111
+{
+	int i;
+
+	static const unsigned char init[] = {
+//		0x00, 0x00,	/* 00 - ID byte */
+//		0x01, 0x00,	/* 01 - reserved */
+		/*front end */
+		0x02, 0xc0,	/* 02 - FUSE=3, GUDL=2, MODE=0 */
+		0x03, 0x23,	/* 03 - HLNRS=0, VBSL=1, WPOFF=0, HOLDG=0, GAFIX=0, GAI1=256, GAI2=256 */
+		0x04, 0x00,	/* 04 - GAI1=256 */
+		0x05, 0x00,	/* 05 - GAI2=256 */
+		/* decoder */
+		// WARNING: This comment isn't correct (refers to 06:f3, 07:13 I think)
+//		0x06, 0xEC, 	/* 06 - HSB at  13(50Hz) /  17(60Hz) pixels after end of last line */
+		0x06, 0xED, 	/* 06 - HSB at  13(50Hz) /  17(60Hz) pixels after end of last line */
+		0x07, 0x00, 	/* 07 - HSS at 113(50Hz) / 117(60Hz) pixels after end of last line */
+		0x08, 0xc8,	/* 08 - AUFD=1, FSEL=1, EXFIL=0, VTRC=1, HPLL=0, VNOI=0 */
+		0x09, 0x01,	/* 09 - BYPS=0, PREF=0, BPSS=0, VBLB=0, UPTCV=0, APER=1 */
+		0x0a, 0x80,	/* 0a - BRIG=128 */
+		0x0b, 0x47,	/* 0b - CONT=1.109 */
+		0x0c, 0x40,	/* 0c - SATN=1.0 */
+		0x0d, 0x00,	/* 0d - HUE=0 */
+		0x0e, 0x01,	/* 0e - CDTO=0, CSTD=0, DCCF=0, FCTC=0, CHBW=1 */
+		0x0f, 0x00,	/* 0f - reserved */
+		0x10, 0x44,	/* 10 - OFTS=1, HDEL=0, VRLN=1, YDEL=0 */
+		0x11, 0x0c,	/* 11 - GPSW=0, CM99=0, FECO=0, COMPO=1, OEYC=1, OEHV=1, VIPB=0, COLO=0 */
+		0x12, 0x00,	/* 12 - output control 2 */
+		0x13, 0x00,	/* 13 - output control 3 */
+		0x14, 0x00,	/* 14 - reserved */
+		0x15, 0x00,	/* 15 - VBI */
+		0x16, 0x00,	/* 16 - VBI */
+		0x17, 0x00,	/* 17 - VBI */
+	};
+	
+	int stat = [self saa7111Read:0x1f];
+	NSLog(@"MORIMORI initSAA7111 %02x CODE = %d, FIDT = %d, HLCK = %d, STTC = %d", stat,
+		  stat & 1, (stat >> 5) & 1, (stat >> 6) & 1, (stat >> 7) & 1);
+//	udelay(1000000);
+
+	for (i = 0; i < sizeof(init) / 2; ++i) {
+		[self saa7111Write:init[i * 2] data:init[i * 2 + 1]];
+	}
+
+	[self setBrightness:((1.0f / 256) * 0x95)];
+	[self setContrast:((1.0f / 256) * 0x48)];
+	[self setSaturation:((1.0f / 256) * 0x50)];
+	[self setHue:((1.0f / 256) * 0x00)];	
+
+//	udelay(1000000);	
+}
 
 @end
