@@ -29,6 +29,13 @@
 #include "yuv2rgb.h"
 #include "USB_VendorProductIDs.h"
 #import "yuv2rgb.h"
+#import "saa711x_regs.h"
+
+enum em28xx_decoder {
+	EM28XX_NODECODER = 0,
+	EM28XX_TVP5150,
+	EM28XX_SAA711X,
+};
 
 @implementation KworldTV300UDriver
 //
@@ -51,6 +58,12 @@
 			 [NSNumber numberWithUnsignedShort:0x0515], @"idProduct",
 			 [NSNumber numberWithUnsignedShort:0x04bb], @"idVendor",
 			 @"IO-Data GV-MVP/SZ", @"name", NULL],
+		/* eb1a:5006 Honestech VIDBOX NW03
+		 * Empia EM2860, Philips SAA7113, Empia EMP202, No Tuner */
+		[NSDictionary dictionaryWithObjectsAndKeys:
+			 [NSNumber numberWithUnsignedShort:0x5006], @"idProduct",
+			 [NSNumber numberWithUnsignedShort:0xeb1a], @"idVendor",
+			 @"Honestech Vidbox NW03", @"name", NULL],
 			
         // More entries can easily be added for more cameras
         
@@ -94,13 +107,25 @@
 	unsigned char buf[8];
 	buf[0] = EM28XX_I2C_CLK_WAIT_ENABLE;
 	[self em28xxWriteRegisters:EM28XX_R06_I2C_CLK withBuffer:buf ofLength:1];
-	buf[0] = TVP5150_MSB_DEV_ID;
-	[self em28xxI2cSendBytes:0xb8 buf:buf len:1 stop:0];
-	[self em28xxI2cRecvBytes:0xb8 buf:buf len:1];
-	buf[0] = TVP5150_LSB_DEV_ID;
-	[self em28xxI2cSendBytes:0xb8 buf:buf len:1 stop:0];
-	[self em28xxI2cRecvBytes:0xb8 buf:buf len:1];
-
+	
+	if ([cameraInfo vendorID] == 0x04bb && [cameraInfo productID] == 0x0515) {
+		driver_info = EM2820_BOARD_IODATA_GVMVP_SZ;
+		decoder = EM28XX_TVP5150;
+	}
+	if ([cameraInfo vendorID] == 0xeb1a && [cameraInfo productID] == 0x5006) {
+		driver_info = EM2860_BOARD_HT_VIDBOX_NW03;
+		decoder = EM28XX_SAA711X;
+	}
+	
+	if (decoder == EM28XX_TVP5150) {
+		buf[0] = TVP5150_MSB_DEV_ID;
+		[self em28xxI2cSendBytes:0xb8 buf:buf len:1 stop:0];
+		[self em28xxI2cRecvBytes:0xb8 buf:buf len:1];
+		buf[0] = TVP5150_LSB_DEV_ID;
+		[self em28xxI2cSendBytes:0xb8 buf:buf len:1 stop:0];
+		[self em28xxI2cRecvBytes:0xb8 buf:buf len:1];
+	}
+	
 	int i, reg;
 /*
 	for (i = 0;i < 256; ++i) {
@@ -298,6 +323,14 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 //
 // This is the key method that starts up the stream
 //
+- (int) saa7111Write:(unsigned char)subaddr data:(unsigned char)data
+{
+	char buf[2];
+	
+	buf[0] = subaddr;
+	buf[1] = data;
+	[self em28xxI2cSendBytes:0x4a buf:buf len:2 stop:1];
+}
 
 - (BOOL) startupGrabStream 
 {
@@ -968,44 +1001,83 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 		0,0x000c,1,0x10,
 		0xff
 	};
+	
+	/* SAA7113 init codes */
+	static const unsigned char saa7113_init[] = {
+		R_01_INC_DELAY, 0x08,
+		R_02_INPUT_CNTL_1, 0xc2,
+		R_03_INPUT_CNTL_2, 0x30,
+		R_04_INPUT_CNTL_3, 0x00,
+		R_05_INPUT_CNTL_4, 0x00,
+		R_06_H_SYNC_START, 0x89,
+		R_07_H_SYNC_STOP, 0x0d,
+		R_08_SYNC_CNTL, 0x88,
+		R_09_LUMA_CNTL, 0x01,
+		R_0A_LUMA_BRIGHT_CNTL, 0x80,
+		R_0B_LUMA_CONTRAST_CNTL, 0x47,
+		R_0C_CHROMA_SAT_CNTL, 0x40,
+		R_0D_CHROMA_HUE_CNTL, 0x00,
+		R_0E_CHROMA_CNTL_1, 0x01,
+		R_0F_CHROMA_GAIN_CNTL, 0x2a,
+		R_10_CHROMA_CNTL_2, 0x08,
+		R_11_MODE_DELAY_CNTL, 0x0c,
+		R_12_RT_SIGNAL_CNTL, 0x07,
+		R_13_RT_X_PORT_OUT_CNTL, 0x00,
+		R_14_ANAL_ADC_COMPAT_CNTL, 0x00,
+		R_15_VGATE_START_FID_CHG, 0x00,
+		R_16_VGATE_STOP, 0x00,
+		R_17_MISC_VGATE_CONF_AND_MSB, 0x00,
+		
+//		0x00, 0x00
+	};
 
 	int i, reg;
 
-	i = 0;
-	while (reginit2[i] != 0xff) {
-		int len = reginit2[i + 2];
-		if (reginit2[i] == 0) {
-			[self em28xxWriteRegisters:reginit2[i + 1] withBuffer:&reginit2[i+3] ofLength:len];
-		} else {
-			reg = [self em28xxReadRegister:reginit2[i + 1]];
+	if (decoder == EM28XX_TVP5150) {
+		i = 0;
+		while (reginit2[i] != 0xff) {
+			int len = reginit2[i + 2];
+			if (reginit2[i] == 0) {
+				[self em28xxWriteRegisters:reginit2[i + 1] withBuffer:&reginit2[i+3] ofLength:len];
+			} else {
+				reg = [self em28xxReadRegister:reginit2[i + 1]];
+			}
+			i = i + len + 3;
 		}
-		i = i + len + 3;
+		
+		i = 0;
+		while (tvp5150[i].addr != 0xff) {
+			buf[0] = tvp5150[i].addr;
+			buf[1] = tvp5150[i].val;
+			++i;
+			[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
+		}
 	}
 
-	i = 0;
-	while (tvp5150[i].addr != 0xff) {
-		buf[0] = tvp5150[i].addr;
-		buf[1] = tvp5150[i].val;
-		++i;
-		[self em28xxI2cSendBytes:0xb8 buf:buf len:2 stop:1];
+	if (decoder == EM28XX_SAA711X) {
+		for (i = 0; i < sizeof(saa7113_init) / 2; ++i) {
+			[self saa7111Write:saa7113_init[i * 2] data:saa7113_init[i * 2 + 1]];
+		}		
 	}
 
 	buf[0] = EM28XX_XCLK_FREQUENCY_12MHZ;
 	[self em28xxWriteRegisters:EM28XX_R0F_XCLK withBuffer:buf ofLength:1];
 
-	buf[0] = 0xff;
-	[self em28xxWriteRegisters:EM28XX_R08_GPIO withBuffer:buf ofLength:1];
-	usleep(50000);
-	buf[0] = 0xf7;
-	[self em28xxWriteRegisters:EM28XX_R08_GPIO withBuffer:buf ofLength:1];
-	usleep(50000);
-	buf[0] = 0xfe;
-	[self em28xxWriteRegisters:EM28XX_R08_GPIO withBuffer:buf ofLength:1];
-	usleep(50000);
-	buf[0] = 0xfd;
-	[self em28xxWriteRegisters:EM28XX_R08_GPIO withBuffer:buf ofLength:1];
-	usleep(50000);
-
+	if (driver_info == EM2820_BOARD_IODATA_GVMVP_SZ) {
+		buf[0] = 0xff;
+		[self em28xxWriteRegisters:EM28XX_R08_GPIO withBuffer:buf ofLength:1];
+		usleep(50000);
+		buf[0] = 0xf7;
+		[self em28xxWriteRegisters:EM28XX_R08_GPIO withBuffer:buf ofLength:1];
+		usleep(50000);
+		buf[0] = 0xfe;
+		[self em28xxWriteRegisters:EM28XX_R08_GPIO withBuffer:buf ofLength:1];
+		usleep(50000);
+		buf[0] = 0xfd;
+		[self em28xxWriteRegisters:EM28XX_R08_GPIO withBuffer:buf ofLength:1];
+		usleep(50000);
+	}
+	
 	buf[0] = EM28XX_VINCTRL_INTERLACED | EM28XX_VINCTRL_CCIR656_ENABLE;
 	[self em28xxWriteRegisters:EM28XX_R11_VINCTRL withBuffer:buf ofLength:1];
 	usleep(50000);
