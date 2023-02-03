@@ -192,6 +192,7 @@ enum em28xx_decoder {
 	return [self usbSetAltInterfaceTo:7 testPipe:[self getGrabbingPipe]];
 }
 
+int frsize = 0;
 int frcount = 0;
 int allcount = 0;
 //
@@ -217,13 +218,18 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 	if (frameLength >= 4) {
 		if (buffer[0] == 0x22 && buffer[1] == 0x5a && (buffer[2] & 1) == 0) {
 //			if (buffer[0] == 0x22 && buffer[1] == 0x5a) {
-//				if((buffer[2] & 1 && frcount != 312324) || ((buffer[2] & 1) == 0 && frcount != 311044))
-//			printf("MORI MORI %d %d %d\n", frcount, buffer[2] & 1, buffer[3]);
-			frcount = frameLength - 4;
+//				if((buffer[2] & 1 && frsize != 312324) || ((buffer[2] & 1) == 0 && frsize != 311044))
+//			printf("MORI MORI %d %d %d %d\n", frsize, frcount, buffer[2] & 1, buffer[3]);
+			frsize = frameLength - 4;
+			frcount = 1;
 			return newChunkFrame;
 //		} else if (buffer[0] == 0x88 && buffer[1] == 0x88 && buffer[2] == 0x88 && buffer[3] == 0x88) {
 		} else {
-			frcount += frameLength - 4;
+			frsize += frameLength - 4;
+			/* Interless second freme aliment */
+			if(frsize == 312324)
+				*dataLength -= 4;
+			++frcount;
 		}
 	}
 
@@ -1191,10 +1197,10 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 		i = 0;
 		while (reginit2[i] != 0xff) {
 			int len = reginit2[i + 2];
-			if (reginit2[i] == 0) {
+			if (reginit2[i] == 0 && reginit2[i + 1] == 0xb8) {
 				[self em28xxWriteRegisters:reginit2[i + 1] withBuffer:&reginit2[i+3] ofLength:len];
 			} else {
-				reg = [self em28xxReadRegister:reginit2[i + 1]];
+//				reg = [self em28xxReadRegister:reginit2[i + 1]];
 			}
 			i = i + len + 3;
 		}
@@ -1321,55 +1327,62 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 //    printf("Need to decode a buffer with %ld bytes.\n", buffer->numBytes);
 
 	long w, h;
-    UInt8 * src = buffer->buffer;
+//    UInt8 * src = buffer->buffer;
+    UInt16 * src = buffer->buffer;
     UInt8 * dst;
     
 	short numColumns  = [self width];
 	short numRows = [self height];
+	int r, g, b;
 
-	if (buffer->numBytes != 623368) {
+	if (buffer->numBytes != 623368 - 4) {
 		printf("invalid frame data size %d\n", buffer->numBytes);
 		return NO;
 	}
+#define USE_SSE
 #if 1
 //	printf("nextImageBufferRowBytes %d %d\n", nextImageBufferRowBytes, nextImageBufferBPP);
 	// dst[0] = R, dst[1] = G, dst[2] = B
-	int r, g, b;
     for (h = 0; h < numRows / 2; h++) 
     {
-        dst = nextImageBuffer + h * nextImageBufferRowBytes * 2;
-        
+		dst = nextImageBuffer + h * nextImageBufferRowBytes * 2;        
+#ifdef USE_SSE
+		rgb565(src, dst, numColumns);
+		src += numColumns;
+#else
         for (w = 0; w < numColumns; w++) 
 		{
-            r = (src[0] & 0x1f);
-            g = ((src[0] >> 5) | ((src[1] & 0x07) << 3));
-            b = (src[1] >> 3);
+            r = (*src & 0x1f);
+            g = (*src >> 5) & 0x3f;
+            b = (*src >> 11);
             dst[0] = r * 0xff / 0x1f;
             dst[1] = g * 0xff / 0x3f;
             dst[2] = b * 0xff / 0x1f;
-            src += 2;
+            src += 1;
             dst += nextImageBufferBPP;
         }
-
+#endif
 	}
-
-	src = buffer->buffer + 312324;
+	src = buffer->buffer + 312320;
 	for (h = 0; h < numRows / 2; h++) 
     {
-        dst = nextImageBuffer + h * nextImageBufferRowBytes * 2 + nextImageBufferRowBytes;
-        
+		dst = nextImageBuffer + h * nextImageBufferRowBytes * 2 + nextImageBufferRowBytes;
+#ifdef USE_SSE
+		rgb565(src, dst, numColumns);
+		src += numColumns;
+#else
         for (w = 0; w < numColumns; w++) 
 		{
-            r = (src[0] & 0x1f);
-            g = ((src[0] >> 5) | ((src[1] & 0x07) << 3));
-            b = (src[1] >> 3);
+            r = (*src & 0x1f);
+            g = (*src >> 5) & 0x3f;
+            b = (*src >> 11);
             dst[0] = r * 0xff / 0x1f;
             dst[1] = g * 0xff / 0x3f;
             dst[2] = b * 0xff / 0x1f;
-            src += 2;
+            src += 1;
             dst += nextImageBufferBPP;
         }
-		
+#endif
 	}
 #else
 	yuv2rgb (640,240,YUVCPIA422Style,src,nextImageBuffer,nextImageBufferBPP,0,nextImageBufferRowBytes,0);
@@ -1377,6 +1390,116 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 #endif
 
     return YES;
+}
+
+int rgb565(uint16_t *rgb565buf, uint8_t *rgb888buf, size_t buf_size) { 
+    // Create a small test buffer
+    // We process 16 pixels at a time, so size must be a multiple of 16
+	
+    // Fill it with recognizable data
+	int i;
+		
+    // Masks for extracting RGB channels
+    const __m128i mask_r = _mm_set1_epi32(0x00F80000);
+    const __m128i mask_g = _mm_set1_epi32(0x0000FC00);
+    const __m128i mask_b = _mm_set1_epi32(0x000000F8);
+	
+    // Masks for extracting 24bpp pixels for the first 128b write
+    const __m128i mask_0_1st  = _mm_set_epi32(0,          0,          0,          0x00FFFFFF);
+    const __m128i mask_0_2nd  = _mm_set_epi32(0,          0,          0x0000FFFF, 0xFF000000);
+    const __m128i mask_0_3rd  = _mm_set_epi32(0,          0x000000FF, 0xFFFF0000, 0         );
+    const __m128i mask_0_4th  = _mm_set_epi32(0,          0xFFFFFF00, 0,          0         );
+    const __m128i mask_0_5th  = _mm_set_epi32(0x00FFFFFF, 0,          0,          0         );
+    const __m128i mask_0_6th  = _mm_set_epi32(0xFF000000, 0,          0,          0         ); 
+    // Masks for the second write
+    const __m128i mask_1_6th  = _mm_set_epi32(0,          0,          0,          0x0000FFFF);
+    const __m128i mask_1_7th  = _mm_set_epi32(0,          0,          0x000000FF, 0xFFFF0000);
+    const __m128i mask_1_8th  = _mm_set_epi32(0,          0,          0xFFFFFF00, 0         );
+    const __m128i mask_1_9th  = _mm_set_epi32(0,          0x00FFFFFF, 0,          0         );
+    const __m128i mask_1_10th = _mm_set_epi32(0x0000FFFF, 0xFF000000, 0,          0         );
+    const __m128i mask_1_11th = _mm_set_epi32(0xFFFF0000, 0,          0,          0         );
+    // Masks for the third write
+    const __m128i mask_2_11th = _mm_set_epi32(0,          0,          0,          0x000000FF);
+    const __m128i mask_2_12th = _mm_set_epi32(0,          0,          0,          0xFFFFFF00);
+    const __m128i mask_2_13th = _mm_set_epi32(0,          0,          0x00FFFFFF, 0         );
+    const __m128i mask_2_14th = _mm_set_epi32(0,          0x0000FFFF, 0xFF000000, 0         );
+    const __m128i mask_2_15th = _mm_set_epi32(0x000000FF, 0xFFFF0000, 0,          0         );
+    const __m128i mask_2_16th = _mm_set_epi32(0xFFFFFF00, 0,          0,          0         );
+	
+    // Convert the RGB565 data into RGB888 data
+    __m128i *packed_rgb888_buf = (__m128i*)rgb888buf;
+    for (i = 0; i < buf_size; i += 16) {
+        // Need to do 16 pixels at a time -> least number of 24bpp pixels that fit evenly in XMM register
+        __m128i rgb565pix0_raw = _mm_load_si128((__m128i *)(&rgb565buf[i]));
+        __m128i rgb565pix1_raw = _mm_load_si128((__m128i *)(&rgb565buf[i+8]));
+		
+        // Extend the 16b ints to 32b ints
+        __m128i rgb565pix0lo_32b = _mm_unpacklo_epi16(rgb565pix0_raw, _mm_setzero_si128());
+        __m128i rgb565pix0hi_32b = _mm_unpackhi_epi16(rgb565pix0_raw, _mm_setzero_si128());
+        // Shift each color channel into the correct position and mask off the other bits
+        __m128i rgb888pix0lo_r = _mm_and_si128(mask_r, _mm_slli_epi32(rgb565pix0lo_32b, 8)); // Block 0 low pixels
+        __m128i rgb888pix0lo_g = _mm_and_si128(mask_g, _mm_slli_epi32(rgb565pix0lo_32b, 5));
+        __m128i rgb888pix0lo_b = _mm_and_si128(mask_b, _mm_slli_epi32(rgb565pix0lo_32b, 3));
+        __m128i rgb888pix0hi_r = _mm_and_si128(mask_r, _mm_slli_epi32(rgb565pix0hi_32b, 8)); // Block 0 high pixels
+        __m128i rgb888pix0hi_g = _mm_and_si128(mask_g, _mm_slli_epi32(rgb565pix0hi_32b, 5));
+        __m128i rgb888pix0hi_b = _mm_and_si128(mask_b, _mm_slli_epi32(rgb565pix0hi_32b, 3));
+        // Combine each color channel into a single vector of four 32bpp pixels
+        __m128i rgb888pix0lo_32b = _mm_or_si128(rgb888pix0lo_r, _mm_or_si128(rgb888pix0lo_g, rgb888pix0lo_b));
+        __m128i rgb888pix0hi_32b = _mm_or_si128(rgb888pix0hi_r, _mm_or_si128(rgb888pix0hi_g, rgb888pix0hi_b));
+		
+        // Same thing as above for the next block of pixels
+        __m128i rgb565pix1lo_32b = _mm_unpacklo_epi16(rgb565pix1_raw, _mm_setzero_si128());
+        __m128i rgb565pix1hi_32b = _mm_unpackhi_epi16(rgb565pix1_raw, _mm_setzero_si128());
+        __m128i rgb888pix1lo_r = _mm_and_si128(mask_r, _mm_slli_epi32(rgb565pix1lo_32b, 8)); // Block 1 low pixels
+        __m128i rgb888pix1lo_g = _mm_and_si128(mask_g, _mm_slli_epi32(rgb565pix1lo_32b, 5));
+        __m128i rgb888pix1lo_b = _mm_and_si128(mask_b, _mm_slli_epi32(rgb565pix1lo_32b, 3));
+        __m128i rgb888pix1hi_r = _mm_and_si128(mask_r, _mm_slli_epi32(rgb565pix1hi_32b, 8)); // Block 1 high pixels
+        __m128i rgb888pix1hi_g = _mm_and_si128(mask_g, _mm_slli_epi32(rgb565pix1hi_32b, 5));
+        __m128i rgb888pix1hi_b = _mm_and_si128(mask_b, _mm_slli_epi32(rgb565pix1hi_32b, 3));
+        __m128i rgb888pix1lo_32b = _mm_or_si128(rgb888pix1lo_r, _mm_or_si128(rgb888pix1lo_g, rgb888pix1lo_b));
+        __m128i rgb888pix1hi_32b = _mm_or_si128(rgb888pix1hi_r, _mm_or_si128(rgb888pix1hi_g, rgb888pix1hi_b));
+		
+        // At this point, rgb888pix_32b contains the pixel data in 32bpp format, need to compress it to 24bpp
+        // Use the _mm_bs*li_si128(__m128i, int) intrinsic to shift each 24bpp pixel into it's final position
+        // ...then mask off the other pixels and combine the result together with or
+        __m128i pix_0_1st = _mm_and_si128(mask_0_1st,                 rgb888pix0lo_32b     ); // First 4 pixels
+        __m128i pix_0_2nd = _mm_and_si128(mask_0_2nd, _mm_srli_si128(rgb888pix0lo_32b, 1 ));
+        __m128i pix_0_3rd = _mm_and_si128(mask_0_3rd, _mm_srli_si128(rgb888pix0lo_32b, 2 ));
+        __m128i pix_0_4th = _mm_and_si128(mask_0_4th, _mm_srli_si128(rgb888pix0lo_32b, 3 ));
+        __m128i pix_0_5th = _mm_and_si128(mask_0_5th, _mm_slli_si128(rgb888pix0hi_32b, 12)); // Second 4 pixels
+        __m128i pix_0_6th = _mm_and_si128(mask_0_6th, _mm_slli_si128(rgb888pix0hi_32b, 11));
+        // Combine each piece of 24bpp pixel data into a single 128b variable
+        __m128i pix128_0 = _mm_or_si128(_mm_or_si128(_mm_or_si128(pix_0_1st, pix_0_2nd), pix_0_3rd), 
+                                        _mm_or_si128(_mm_or_si128(pix_0_4th, pix_0_5th), pix_0_6th));
+        _mm_store_si128(packed_rgb888_buf, pix128_0);
+		
+        // Repeat the same for the second 128b write
+        __m128i pix_1_6th  = _mm_and_si128(mask_1_6th,  _mm_srli_si128(rgb888pix0hi_32b, 5 ));
+        __m128i pix_1_7th  = _mm_and_si128(mask_1_7th,  _mm_srli_si128(rgb888pix0hi_32b, 6 ));
+        __m128i pix_1_8th  = _mm_and_si128(mask_1_8th,  _mm_srli_si128(rgb888pix0hi_32b, 7 ));
+        __m128i pix_1_9th  = _mm_and_si128(mask_1_9th,  _mm_slli_si128(rgb888pix1lo_32b, 8 )); // Third 4 pixels
+        __m128i pix_1_10th = _mm_and_si128(mask_1_10th, _mm_slli_si128(rgb888pix1lo_32b, 7 ));
+        __m128i pix_1_11th = _mm_and_si128(mask_1_11th, _mm_slli_si128(rgb888pix1lo_32b, 6 ));
+        __m128i pix128_1 = _mm_or_si128(_mm_or_si128(_mm_or_si128(pix_1_6th, pix_1_7th),  pix_1_8th ), 
+                                        _mm_or_si128(_mm_or_si128(pix_1_9th, pix_1_10th), pix_1_11th));
+        _mm_store_si128(packed_rgb888_buf+1, pix128_1);
+		
+        // And again for the third 128b write
+        __m128i pix_2_11th = _mm_and_si128(mask_2_11th, _mm_srli_si128(rgb888pix1lo_32b, 10));
+        __m128i pix_2_12th = _mm_and_si128(mask_2_12th, _mm_srli_si128(rgb888pix1lo_32b, 11));
+        __m128i pix_2_13th = _mm_and_si128(mask_2_13th, _mm_slli_si128(rgb888pix1hi_32b,  4)); // Fourth 4 pixels
+        __m128i pix_2_14th = _mm_and_si128(mask_2_14th, _mm_slli_si128(rgb888pix1hi_32b,  3));
+        __m128i pix_2_15th = _mm_and_si128(mask_2_15th, _mm_slli_si128(rgb888pix1hi_32b,  2));
+        __m128i pix_2_16th = _mm_and_si128(mask_2_16th, _mm_slli_si128(rgb888pix1hi_32b,  1));
+        __m128i pix128_2 = _mm_or_si128(_mm_or_si128(_mm_or_si128(pix_2_11th, pix_2_12th), pix_2_13th), 
+                                        _mm_or_si128(_mm_or_si128(pix_2_14th, pix_2_15th), pix_2_16th));
+        _mm_store_si128(packed_rgb888_buf+2, pix128_2);
+		
+        // Update pointer for next iteration
+        packed_rgb888_buf += 3;
+    }
+
+    return EXIT_SUCCESS;
 }
 
 @end
