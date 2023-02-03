@@ -323,13 +323,19 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 //
 // This is the key method that starts up the stream
 //
-- (int) saa7111Write:(unsigned char)subaddr data:(unsigned char)data
+- (int) saa711x_writeregs:(const unsigned char *) regs
 {
+	unsigned char reg, data;
 	char buf[2];
 	
-	buf[0] = subaddr;
-	buf[1] = data;
-	[self em28xxI2cSendBytes:0x4a buf:buf len:2 stop:1];
+	while (*regs != 0x00) {
+		buf[0] = *(regs++);
+		buf[1] = *(regs++);
+	
+		[self em28xxI2cSendBytes:0x4a buf:buf len:2 stop:1];
+	}
+	
+	return 0;
 }
 
 - (BOOL) startupGrabStream 
@@ -1005,32 +1011,180 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 	/* SAA7113 init codes */
 	static const unsigned char saa7113_init[] = {
 		R_01_INC_DELAY, 0x08,
+
 		R_02_INPUT_CNTL_1, 0xc2,
 		R_03_INPUT_CNTL_2, 0x30,
 		R_04_INPUT_CNTL_3, 0x00,
 		R_05_INPUT_CNTL_4, 0x00,
+ 
 		R_06_H_SYNC_START, 0x89,
 		R_07_H_SYNC_STOP, 0x0d,
 		R_08_SYNC_CNTL, 0x88,
+
 		R_09_LUMA_CNTL, 0x01,
 		R_0A_LUMA_BRIGHT_CNTL, 0x80,
 		R_0B_LUMA_CONTRAST_CNTL, 0x47,
+
 		R_0C_CHROMA_SAT_CNTL, 0x40,
 		R_0D_CHROMA_HUE_CNTL, 0x00,
 		R_0E_CHROMA_CNTL_1, 0x01,
 		R_0F_CHROMA_GAIN_CNTL, 0x2a,
 		R_10_CHROMA_CNTL_2, 0x08,
+
 		R_11_MODE_DELAY_CNTL, 0x0c,
+
 		R_12_RT_SIGNAL_CNTL, 0x07,
 		R_13_RT_X_PORT_OUT_CNTL, 0x00,
 		R_14_ANAL_ADC_COMPAT_CNTL, 0x00,
+		
 		R_15_VGATE_START_FID_CHG, 0x00,
 		R_16_VGATE_STOP, 0x00,
 		R_17_MISC_VGATE_CONF_AND_MSB, 0x00,
-		
-//		0x00, 0x00
+
+		0x00, 0x00
 	};
 
+	static const unsigned char saa7115_init_misc[] = {
+		R_81_V_SYNC_FLD_ID_SRC_SEL_AND_RETIMED_V_F, 0x01,
+		R_83_X_PORT_I_O_ENA_AND_OUT_CLK, 0x01,
+		R_84_I_PORT_SIGNAL_DEF, 0x20,
+		R_85_I_PORT_SIGNAL_POLAR, 0x21,
+		R_86_I_PORT_FIFO_FLAG_CNTL_AND_ARBIT, 0xc5,
+		R_87_I_PORT_I_O_ENA_OUT_CLK_AND_GATED, 0x01,
+		
+		/* Task A */
+		R_A0_A_HORIZ_PRESCALING, 0x01,
+		R_A1_A_ACCUMULATION_LENGTH, 0x00,
+		R_A2_A_PRESCALER_DC_GAIN_AND_FIR_PREFILTER, 0x00,
+		
+		/* Configure controls at nominal value*/
+		R_A4_A_LUMA_BRIGHTNESS_CNTL, 0x80,
+		R_A5_A_LUMA_CONTRAST_CNTL, 0x40,
+		R_A6_A_CHROMA_SATURATION_CNTL, 0x40,
+		
+		/* note: 2 x zoom ensures that VBI lines have same length as video lines. */
+		R_A8_A_HORIZ_LUMA_SCALING_INC, 0x00,
+		R_A9_A_HORIZ_LUMA_SCALING_INC_MSB, 0x02,
+		
+		R_AA_A_HORIZ_LUMA_PHASE_OFF, 0x00,
+		
+		/* must be horiz lum scaling / 2 */
+		R_AC_A_HORIZ_CHROMA_SCALING_INC, 0x00,
+		R_AD_A_HORIZ_CHROMA_SCALING_INC_MSB, 0x01,
+		
+		/* must be offset luma / 2 */
+		R_AE_A_HORIZ_CHROMA_PHASE_OFF, 0x00,
+		
+		R_B0_A_VERT_LUMA_SCALING_INC, 0x00,
+		R_B1_A_VERT_LUMA_SCALING_INC_MSB, 0x04,
+		
+		R_B2_A_VERT_CHROMA_SCALING_INC, 0x00,
+		R_B3_A_VERT_CHROMA_SCALING_INC_MSB, 0x04,
+		
+		R_B4_A_VERT_SCALING_MODE_CNTL, 0x01,
+		
+		R_B8_A_VERT_CHROMA_PHASE_OFF_00, 0x00,
+		R_B9_A_VERT_CHROMA_PHASE_OFF_01, 0x00,
+		R_BA_A_VERT_CHROMA_PHASE_OFF_10, 0x00,
+		R_BB_A_VERT_CHROMA_PHASE_OFF_11, 0x00,
+		
+		R_BC_A_VERT_LUMA_PHASE_OFF_00, 0x00,
+		R_BD_A_VERT_LUMA_PHASE_OFF_01, 0x00,
+		R_BE_A_VERT_LUMA_PHASE_OFF_10, 0x00,
+		R_BF_A_VERT_LUMA_PHASE_OFF_11, 0x00,
+		
+		/* Task B */
+		R_D0_B_HORIZ_PRESCALING, 0x01,
+		R_D1_B_ACCUMULATION_LENGTH, 0x00,
+		R_D2_B_PRESCALER_DC_GAIN_AND_FIR_PREFILTER, 0x00,
+		
+		/* Configure controls at nominal value*/
+		R_D4_B_LUMA_BRIGHTNESS_CNTL, 0x80,
+		R_D5_B_LUMA_CONTRAST_CNTL, 0x40,
+		R_D6_B_CHROMA_SATURATION_CNTL, 0x40,
+		
+		/* hor lum scaling 0x0400 = 1 */
+		R_D8_B_HORIZ_LUMA_SCALING_INC, 0x00,
+		R_D9_B_HORIZ_LUMA_SCALING_INC_MSB, 0x04,
+		
+		R_DA_B_HORIZ_LUMA_PHASE_OFF, 0x00,
+		
+		/* must be hor lum scaling / 2 */
+		R_DC_B_HORIZ_CHROMA_SCALING, 0x00,
+		R_DD_B_HORIZ_CHROMA_SCALING_MSB, 0x02,
+		
+		/* must be offset luma / 2 */
+		R_DE_B_HORIZ_PHASE_OFFSET_CRHOMA, 0x00,
+		
+		R_E0_B_VERT_LUMA_SCALING_INC, 0x00,
+		R_E1_B_VERT_LUMA_SCALING_INC_MSB, 0x04,
+		
+		R_E2_B_VERT_CHROMA_SCALING_INC, 0x00,
+		R_E3_B_VERT_CHROMA_SCALING_INC_MSB, 0x04,
+		
+		R_E4_B_VERT_SCALING_MODE_CNTL, 0x01,
+		
+		R_E8_B_VERT_CHROMA_PHASE_OFF_00, 0x00,
+		R_E9_B_VERT_CHROMA_PHASE_OFF_01, 0x00,
+		R_EA_B_VERT_CHROMA_PHASE_OFF_10, 0x00,
+		R_EB_B_VERT_CHROMA_PHASE_OFF_11, 0x00,
+		
+		R_EC_B_VERT_LUMA_PHASE_OFF_00, 0x00,
+		R_ED_B_VERT_LUMA_PHASE_OFF_01, 0x00,
+		R_EE_B_VERT_LUMA_PHASE_OFF_10, 0x00,
+		R_EF_B_VERT_LUMA_PHASE_OFF_11, 0x00,
+		
+		R_F2_NOMINAL_PLL2_DTO, 0x50,		/* crystal clock = 24.576 MHz, target = 27MHz */
+		R_F3_PLL_INCREMENT, 0x46,
+		R_F4_PLL2_STATUS, 0x00,
+		R_F7_PULSE_A_POS_MSB, 0x4b,		/* not the recommended settings! */
+		R_F8_PULSE_B_POS, 0x00,
+		R_F9_PULSE_B_POS_MSB, 0x4b,
+		R_FA_PULSE_C_POS, 0x00,
+		R_FB_PULSE_C_POS_MSB, 0x4b,
+		
+		/* PLL2 lock detection settings: 71 lines 50% phase error */
+		R_FF_S_PLL_MAX_PHASE_ERR_THRESH_NUM_LINES, 0x88,
+		
+		/* Turn off VBI */
+		R_40_SLICER_CNTL_1, 0x20,             /* No framing code errors allowed. */
+		R_41_LCR_BASE, 0xff,
+		R_41_LCR_BASE+1, 0xff,
+		R_41_LCR_BASE+2, 0xff,
+		R_41_LCR_BASE+3, 0xff,
+		R_41_LCR_BASE+4, 0xff,
+		R_41_LCR_BASE+5, 0xff,
+		R_41_LCR_BASE+6, 0xff,
+		R_41_LCR_BASE+7, 0xff,
+		R_41_LCR_BASE+8, 0xff,
+		R_41_LCR_BASE+9, 0xff,
+		R_41_LCR_BASE+10, 0xff,
+		R_41_LCR_BASE+11, 0xff,
+		R_41_LCR_BASE+12, 0xff,
+		R_41_LCR_BASE+13, 0xff,
+		R_41_LCR_BASE+14, 0xff,
+		R_41_LCR_BASE+15, 0xff,
+		R_41_LCR_BASE+16, 0xff,
+		R_41_LCR_BASE+17, 0xff,
+		R_41_LCR_BASE+18, 0xff,
+		R_41_LCR_BASE+19, 0xff,
+		R_41_LCR_BASE+20, 0xff,
+		R_41_LCR_BASE+21, 0xff,
+		R_41_LCR_BASE+22, 0xff,
+		R_58_PROGRAM_FRAMING_CODE, 0x40,
+		R_59_H_OFF_FOR_SLICER, 0x47,
+		R_5B_FLD_OFF_AND_MSB_FOR_H_AND_V_OFF, 0x83,
+		R_5D_DID, 0xbd,
+		R_5E_SDID, 0x35,
+		
+		R_02_INPUT_CNTL_1, 0xc0, /* input tuner -> input 4, amplifier active */
+		
+		R_80_GLOBAL_CNTL_1, 0x20,		/* enable task B */
+		R_88_POWER_SAVE_ADC_PORT_CNTL, 0xd0,
+		R_88_POWER_SAVE_ADC_PORT_CNTL, 0xf0,
+		0x00, 0x00
+	};
+	
 	int i, reg;
 
 	if (decoder == EM28XX_TVP5150) {
@@ -1055,9 +1209,8 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 	}
 
 	if (decoder == EM28XX_SAA711X) {
-		for (i = 0; i < sizeof(saa7113_init) / 2; ++i) {
-			[self saa7111Write:saa7113_init[i * 2] data:saa7113_init[i * 2 + 1]];
-		}		
+//		[self saa711x_writeregs:saa7113_init];
+//		[self saa711x_writeregs:saa7115_init_misc];
 	}
 
 	buf[0] = EM28XX_XCLK_FREQUENCY_12MHZ;
@@ -1173,8 +1326,7 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
     
 	short numColumns  = [self width];
 	short numRows = [self height];
-    
-	
+
 	if (buffer->numBytes != 623368) {
 		printf("invalid frame data size %d\n", buffer->numBytes);
 		return NO;
