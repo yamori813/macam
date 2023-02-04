@@ -1197,10 +1197,10 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 		i = 0;
 		while (reginit2[i] != 0xff) {
 			int len = reginit2[i + 2];
-			if (reginit2[i] == 0 && reginit2[i + 1] == 0xb8) {
+			if (reginit2[i] == 0 && reginit2[i + 1]) {
 				[self em28xxWriteRegisters:reginit2[i + 1] withBuffer:&reginit2[i+3] ofLength:len];
 			} else {
-//				reg = [self em28xxReadRegister:reginit2[i + 1]];
+				reg = [self em28xxReadRegister:reginit2[i + 1]];
 			}
 			i = i + len + 3;
 		}
