@@ -1709,15 +1709,16 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 		while (reginit3[i] != 0xff) {
 			int len = reginit3[i + 3];
 			if (reginit3[i] == 0) {
-				[self em28xxWriteRegisters:reginit3[i + 1] withBuffer:&reginit3[i+4] ofLength:len];
+//				[self em28xxWriteRegisters:reginit3[i + 1] withBuffer:&reginit3[i+4] ofLength:len];
+				[self usbWriteCmdWithBRequest:reginit3[i + 1] wValue:0 wIndex:reginit3[i + 2] buf:&reginit3[i+4] len:len];
 			} else {
-//				reg = [self em28xxReadRegister:reginit3[i + 2]];
+				reg = [self em28xxReadRegister:reginit3[i + 2]];
 			}
 			i = i + len + 4;
 		}
  
-		[self saa711x_writeregs:saa7113_init];
-		[self saa711x_writeregs:saa7115_init_misc];
+//		[self saa711x_writeregs:saa7113_init];
+//		[self saa711x_writeregs:saa7115_init_misc];
 	}
 
 	buf[0] = EM28XX_XCLK_FREQUENCY_12MHZ;
