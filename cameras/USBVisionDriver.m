@@ -638,31 +638,8 @@ IsocFrameResult  USBVisionIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffe
 		return NO;
 	}
 
-#if 0
-	//	printf("nextImageBufferRowBytes %d %d\n", nextImageBufferRowBytes, nextImageBufferBPP);
-	// dst[0] = R, dst[1] = G, dst[2] = B
-	int r, g, b;
-    for (h = 0; h < numRows; h++) 
-    {
-        dst = nextImageBuffer + h * nextImageBufferRowBytes * 2;
-        
-        for (w = 0; w < numColumns; w++) 
-		{
-            r = (src[0] & 0x1f);
-            g = ((src[0] >> 5) | ((src[1] & 0x07) << 3));
-            b = (src[1] >> 3);
-            dst[0] = r * 0xff / 0x1f;
-            dst[1] = g * 0xff / 0x3f;
-            dst[2] = b * 0xff / 0x1f;
-            src += 2;
-            dst += nextImageBufferBPP;
-        }
-		
-	}
-#else
-	yuv2rgb (numColumns,numRows,YUVCPIA422Style,src,nextImageBuffer,nextImageBufferBPP,numColumns*2,nextImageBufferRowBytes,0);
-	yuv2rgb (numColumns,numRows,YUVCPIA422Style,src,nextImageBuffer+nextImageBufferBPP*numColumns,nextImageBufferBPP,numColumns*2,nextImageBufferRowBytes,0);
-#endif
+	yuv2rgb (numColumns,numRows,YUVCPIA422Style,src,nextImageBuffer,nextImageBufferBPP,0,0,0);
+
     return YES;
 }
 
@@ -725,10 +702,10 @@ IsocFrameResult  USBVisionIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffe
 		0x07, 0x00, 	/* 07 - HSS at 113(50Hz) / 117(60Hz) pixels after end of last line */
 		0x08, 0xc8,	/* 08 - AUFD=1, FSEL=1, EXFIL=0, VTRC=1, HPLL=0, VNOI=0 */
 		0x09, 0x01,	/* 09 - BYPS=0, PREF=0, BPSS=0, VBLB=0, UPTCV=0, APER=1 */
-		0x0a, 0x80,	/* 0a - BRIG=128 */
-		0x0b, 0x47,	/* 0b - CONT=1.109 */
-		0x0c, 0x40,	/* 0c - SATN=1.0 */
-		0x0d, 0x00,	/* 0d - HUE=0 */
+//		0x0a, 0x80,	/* 0a - BRIG=128 */
+//		0x0b, 0x47,	/* 0b - CONT=1.109 */
+//		0x0c, 0x40,	/* 0c - SATN=1.0 */
+//		0x0d, 0x00,	/* 0d - HUE=0 */
 		0x0e, 0x01,	/* 0e - CDTO=0, CSTD=0, DCCF=0, FCTC=0, CHBW=1 */
 		0x0f, 0x00,	/* 0f - reserved */
 		0x10, 0x44,	/* 10 - OFTS=1, HDEL=0, VRLN=1, YDEL=0 */
@@ -749,12 +726,12 @@ IsocFrameResult  USBVisionIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffe
 	for (i = 0; i < sizeof(init) / 2; ++i) {
 		[self saa7111Write:init[i * 2] data:init[i * 2 + 1]];
 	}
-
+/*
 	[self setBrightness:((1.0f / 256) * 0x95)];
 	[self setContrast:((1.0f / 256) * 0x48)];
 	[self setSaturation:((1.0f / 256) * 0x50)];
 	[self setHue:((1.0f / 256) * 0x00)];	
-
+*/
 //	udelay(1000000);	
 }
 
