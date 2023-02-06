@@ -1841,8 +1841,6 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
 		printf("invalid frame data size %d\n", buffer->numBytes);
 		return NO;
 	}
-#define USE_SSE
-#if 1
 //	printf("nextImageBufferRowBytes %d %d\n", nextImageBufferRowBytes, nextImageBufferBPP);
 	// dst[0] = R, dst[1] = G, dst[2] = B
     for (h = 0; h < numRows / 2; h++) 
@@ -1886,10 +1884,6 @@ IsocFrameResult  empiaIsocFrameScanner(IOUSBIsocFrame * frame, UInt8 * buffer,
         }
 #endif
 	}
-#else
-	yuv2rgb (640,240,YUVCPIA422Style,src,nextImageBuffer,nextImageBufferBPP,0,nextImageBufferRowBytes,0);
-	yuv2rgb (640,240,YUVCPIA422Style,src + 312324,nextImageBuffer + nextImageBufferRowBytes,nextImageBufferBPP,0,nextImageBufferRowBytes,0);
-#endif
 
     return YES;
 }
